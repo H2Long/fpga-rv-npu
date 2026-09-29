@@ -1,5 +1,8 @@
-// npu_mac — 计算平面:输入拆包 -> skew 波前对齐 -> 4x4 PE 阵列 ->
-// 排空 -> 结果收集 -> 行主序重排 -> 状态汇总
+// npu_mac — 计算平面。
+//
+// 输入路径把一个 32 位字拆为 4 个 INT8，再用 skew 管线让不同的行/列
+// 在正确的周期相遇。PE 阵列只在 array_enable 时推进；排空阶段没有新输入，
+// 但仍保持 enable，让最后一个波前到达远端 PE。
 `include "npu_defines.vh"
 
 module npu_mac(
@@ -75,6 +78,7 @@ module npu_mac(
     );
 
     // ---- 排空与收集 ----
+    // drain_done 只代表波前已经传播到最远端，collector 还要再串行输出 16 个结果。
     wire drain_done, collect_done;
 
     drain_controller u_drain_controller(
@@ -105,7 +109,8 @@ module npu_mac(
         .error_flag()
     );
 
-    // ---- 流握手:喂数/排空期间 MAC 可接收 ----
+    // 当前阵列没有额外的随机反压：feed 和 drain 期间都可以推进。
+    // 输出 ready 仍然保留在接口上，pair_stream_ctrl 用它闭合 valid/ready 关系。
     assign a_stream_ready  = array_enable;
     assign bt_stream_ready = array_enable;
 

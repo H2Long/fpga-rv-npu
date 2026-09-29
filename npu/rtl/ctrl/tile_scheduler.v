@@ -15,8 +15,10 @@ module tile_scheduler(
 );
 
     // tile 总数(由参数计算)
-    wire [`NPU_TIDX_W-1:0] nt_i = (lp_m + lp_tm - 1) / lp_tm;
-    wire [`NPU_TIDX_W-1:0] nt_j = (lp_n + lp_tn - 1) / lp_tn;
+    wire [`NPU_TIDX_W-1:0] nt_i = (lp_tm == 0) ? {`NPU_TIDX_W{1'b0}} :
+                                    (lp_m + lp_tm - 1) / lp_tm;
+    wire [`NPU_TIDX_W-1:0] nt_j = (lp_tn == 0) ? {`NPU_TIDX_W{1'b0}} :
+                                    (lp_n + lp_tn - 1) / lp_tn;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

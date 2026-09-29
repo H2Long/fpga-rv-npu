@@ -266,7 +266,7 @@ for i, (c, t) in enumerate(items):
 ax.text(lx + 43.0, ly - 0.3,
         "底色:浅蓝 npu_top · 浅黄 npu_ctrl · 浅绿 npu_buffer · 浅紫 npu_mac\n"
         "通用底层模块:pe_cell · npu_ram · npu_sync_fifo · npu_stream_ctrl(被复用)\n"
-        "RTL 全部通过 7 项仿真测试(Icarus Verilog 13, 含多 tile 累加/边界补零/量化/错误路径)",
+        "RTL 全部通过 10 项仿真测试(Icarus Verilog 13, 含多 tile 累加/边界补零/量化/错误路径)",
         fontsize=7.8, va="top", color="#57606A", zorder=6, linespacing=1.6)
 
 plt.subplots_adjust(left=0.004, right=0.996, top=0.996, bottom=0.004)

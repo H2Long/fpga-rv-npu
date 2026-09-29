@@ -25,6 +25,8 @@ module npu_sync_fifo #(parameter AW = `NPU_FIFO_AW, DW = 32) (
     assign full  = (cnt == (1<<AW));
     assign count = cnt;
 
+    // FWFT 读法：rdata 直接观察 rd_ptr 指向的存储单元；pop 只移动读指针。
+    // push/pop 同拍时两个指针都推进，count 保持不变。
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rd_ptr <= 0; wr_ptr <= 0; cnt <= 0;

@@ -23,7 +23,7 @@
 `define NPU_TK_W 5             // TK (1..16)
 `define NPU_QS_W 5             // 量化右移位数
 `define NPU_ERR_W 8            // 错误码
-`define NPU_TIDX_W 5           // tile 计数器位宽
+`define NPU_TIDX_W 6           // tile 计数器位宽,支持 M/N=63 且 TM/TN=1
 `define NPU_CBASE_W 9          // C 元素基地址中间位宽
 
 // MMIO 地址映射(addr_decoder 使用)

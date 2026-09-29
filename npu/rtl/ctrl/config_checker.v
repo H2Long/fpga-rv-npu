@@ -11,13 +11,19 @@ module config_checker(
     output wire [`NPU_ERR_W-1:0]  err_code
 );
 
-    // A/BT Buffer 字数 = ceil(M/TM) * K(每字 = 一个 tile 行组的 TM 行 x 同一个 k)
+    // A/BT Buffer 字数 = ceil(M/TM) * K。
+    // TM/TN 为 0 时不能做除法，先保留 0，后面的错误分支再返回 TILE 错误。
     integer a_words, bt_words, c_words;
 
+    // 这里使用整数计算容量，不参与数据通路，只在启动前给 FSM 提供 cfg_ok/error_code。
     always @(*) begin
-        a_words  = ((lp_m + lp_tm - 1) / lp_tm) * lp_k;
-        bt_words = ((lp_n + lp_tn - 1) / lp_tn) * lp_k;
+        a_words  = 0;
+        bt_words = 0;
         c_words  = lp_m * lp_n;
+        if (lp_tm != 0)
+            a_words = ((lp_m + lp_tm - 1) / lp_tm) * lp_k;
+        if (lp_tn != 0)
+            bt_words = ((lp_n + lp_tn - 1) / lp_tn) * lp_k;
     end
 
     reg        cfg_ok_r;

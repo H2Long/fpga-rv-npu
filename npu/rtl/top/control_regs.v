@@ -23,16 +23,19 @@ module control_regs(
     output wire [31:0] control_rdata
 );
 
+    // 配置寄存器均位于一个 32 位字的低字节；只接受 byte_en[0] 有效的写入。
+    // 这样字节写和整字写的行为一致，同时不会误修改高位保留字段。
     wire wr = req_valid && sel_ctrl && req_we;
+    wire byte0_wr = wr && req_byte_en[0];
 
-    assign start_req      = wr && (ctrl_reg_off == 3'd0) && req_wdata[0];
-    assign clear_done_req = wr && (ctrl_reg_off == 3'd0) && req_wdata[1];
+    assign start_req      = byte0_wr && (ctrl_reg_off == 3'd0) && req_wdata[0];
+    assign clear_done_req = byte0_wr && (ctrl_reg_off == 3'd0) && req_wdata[1];
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             cfg_m <= 6'd4;  cfg_n <= 6'd4;  cfg_k <= 6'd4;
             cfg_tm <= 3'd4; cfg_tn <= 3'd4; cfg_tk <= 5'd4; cfg_qshift <= 5'd0;
-        end else if (wr) begin
+        end else if (byte0_wr) begin
             case (ctrl_reg_off)
                 3'd1: cfg_m     <= req_wdata[`NPU_DIM_W-1:0];
                 3'd2: cfg_n     <= req_wdata[`NPU_DIM_W-1:0];
@@ -46,7 +49,7 @@ module control_regs(
         end
     end
 
-    // 寄存器回读(字读)
+    // 寄存器回读(字读)。CTRL 本身是命令寄存器，不保存 start/clear 状态。
     assign control_rdata =
         (ctrl_reg_off == 3'd0) ? {30'd0, 2'b00}            :
         (ctrl_reg_off == 3'd1) ? {26'd0, cfg_m}            :

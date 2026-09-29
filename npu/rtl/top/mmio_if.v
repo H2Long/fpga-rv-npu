@@ -38,6 +38,8 @@ module mmio_if(
     reg [1:0]  state;
     reg [31:0] rdata_q;
 
+    // 请求生命周期：IDLE 接收请求，WAIT1 等待寄存器/写操作完成，
+    // WAIT2 等待同步 Buffer RAM 返回，RESP 输出一个周期的 ready。
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state        <= S_IDLE;

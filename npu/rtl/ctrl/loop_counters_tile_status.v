@@ -15,9 +15,12 @@ module loop_counters_tile_status(
     output wire [`NPU_TK_W-1:0]   valid_tk
 );
 
-    wire [`NPU_TIDX_W-1:0] nt_i = (lp_m + lp_tm - 1) / lp_tm;
-    wire [`NPU_TIDX_W-1:0] nt_j = (lp_n + lp_tn - 1) / lp_tn;
-    wire [`NPU_TIDX_W-1:0] nt_k = (lp_k + lp_tk - 1) / lp_tk;
+    wire [`NPU_TIDX_W-1:0] nt_i = (lp_tm == 0) ? {`NPU_TIDX_W{1'b0}} :
+                                    (lp_m + lp_tm - 1) / lp_tm;
+    wire [`NPU_TIDX_W-1:0] nt_j = (lp_tn == 0) ? {`NPU_TIDX_W{1'b0}} :
+                                    (lp_n + lp_tn - 1) / lp_tn;
+    wire [`NPU_TIDX_W-1:0] nt_k = (lp_tk == 0) ? {`NPU_TIDX_W{1'b0}} :
+                                    (lp_k + lp_tk - 1) / lp_tk;
 
     assign first_k_tile     = (tile_k == 5'd0);
     assign last_k_tile      = (tile_k + 5'd1 >= nt_k);

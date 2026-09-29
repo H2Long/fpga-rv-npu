@@ -62,7 +62,8 @@ module systolic_fsm(
     assign core_busy = (state != S_IDLE);
     assign fsm_done  = (state == S_DONE);
 
-    // 预取完成条件:FIFO 内已积累本 K tile 的全部字
+    // 预取完成条件：两个 FIFO 都已经拥有当前 K tile 的全部输入字。
+    // stream_ctrl 在 go 期间只发 valid_tk 个请求，因此 count 不会跨 Tile 无限增长。
     wire prefetch_done = (a_fifo_count >= {1'b0, valid_tk}) &&
                          (bt_fifo_count >= {1'b0, valid_tk});
     wire feed_beat_done = pair_fire && (feed_cnt + 6'd1 >= {1'b0, valid_tk});
@@ -111,6 +112,7 @@ module systolic_fsm(
                     state <= S_PREFETCH_INPUT;
                 end
 
+                // 预取阶段不推进 PE，只等待两个 FIFO 都装满当前 K tile。
                 S_PREFETCH_INPUT: begin
                     prefetch_go <= 1'b1;
                     feed_cnt    <= 6'd0;   // 每个 K tile 重新计数(K 间不经过 CLEAR_C_TILE)
@@ -120,11 +122,13 @@ module systolic_fsm(
                     end
                 end
 
+                // 单拍启动阵列并清空 PE 累加器；下一拍才开始送入有效数据。
                 S_ARRAY_START: begin
                     ph_array_start <= 1'b1;    // 阵列启动 + PE 累加器清零
                     state <= S_ARRAY_FEED;
                 end
 
+                // A/BT 必须成对 fire。最后一对被接受后立即停止 feed，下一阶段只排空。
                 S_ARRAY_FEED: begin
                     feed_go <= 1'b1;
                     if (pair_fire) begin
@@ -137,6 +141,7 @@ module systolic_fsm(
                     end
                 end
 
+                // 阵列继续 enable，让最后的波前穿过 PE；array_done 表示结果流已收完。
                 S_ARRAY_DRAIN: begin
                     drain_en <= 1'b1;           // 阵列继续推进 + 排空(P+Q-2 拍)
                     if (array_done) begin       // 16 个结果已串行流出
@@ -158,6 +163,7 @@ module systolic_fsm(
                     end
                 end
 
+                // write_done 只有在 C 写 FIFO 排空且所有有效 lane 已入队后才会成立。
                 S_WRITE_C_TILE: begin
                     write_go <= 1'b1;
                     if (write_done) begin

@@ -23,7 +23,7 @@ npu/
 │   ├── ctrl/                 Tile 调度、阵列时序和 C 写回
 │   ├── buffer/               A/BT/C Buffer 和数据搬运
 │   └── mac/                  INT8 拆包、PE 阵列和结果收集
-├── tb/tb_npu.v              测试台(CPU 行为模型 + 7 项自校验测试)
+├── tb/tb_npu.v              测试台(CPU 行为模型 + 10 项自校验测试)
 ├── scripts/                 仿真与绘图脚本
 ├── docs/                    设计说明
 ├── sim/                     编译产物、日志和波形
@@ -91,11 +91,14 @@ T4_小tile_5x5x6      PASS : M=5  N=5  K=6  TM=2 TN=3 TK=3 q=0 | C 写 25 项, �
 T5_量化_8x8x8_q2     PASS : M=8  N=8  K=8  TM=TN=4 TK=8 q=2 | C 写 64  项, 计算耗时 300  周期
 T6_零维错误          PASS : DONE+ERROR, ERR_CODE=1
 T7_超容量错误        PASS : DONE+ERROR, ERR_CODE=3
-==== 结果: PASS=7 FAIL=0 ====
+T8_TM为零错误        PASS : DONE+ERROR, ERR_CODE=2
+T9_TN为零错误        PASS : DONE+ERROR, ERR_CODE=2
+T10_TK为零错误       PASS : DONE+ERROR, ERR_CODE=4
+==== 结果: PASS=10 FAIL=0 ====
 ```
 
 覆盖:单 tile / 64 tile 多 K 累加 / M、N 非 tile 倍数的边界补零 / tile 步长小于阵列规模 /
-负数舍入量化 / 两条错误路径。数据为固定种子随机 INT8(含负数),期望值由测试台
+负数舍入量化 / 尺寸、容量、TM、TN、TK 错误路径。数据为固定种子随机 INT8(含负数),期望值由测试台
 按相同量化公式独立计算。
 
 ## 7. 复现
@@ -314,7 +317,7 @@ A/BT 一个 32 位字装四个连续行/列的 INT8。C 一个 32 位字保存�
 | M=0 | 尺寸检查 | PASS，ERR_CODE=1 |
 | Buffer 超容量 | 容量检查 | PASS，ERR_CODE=3 |
 
-完整结果为 `PASS=7 FAIL=0`。测试台使用独立整数计算生成期望矩阵，不直接复用 RTL 内部结果。
+完整结果为 `PASS=10 FAIL=0`。测试台使用独立整数计算生成期望矩阵，不直接复用 RTL 内部结果。
 
 ## 16. 复现与输出文件
 

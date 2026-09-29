@@ -10,6 +10,8 @@ module result_quantizer(
 
     reg signed [63:0] t;
 
+    // 中间量显式扩展到 64 位并按有符号数右移，避免负数被零扩展。
+    // 最终结果饱和到有符号 32 位范围，再以 bit pattern 写入 C Buffer。
     always @(*) begin
         if (qshift == 5'd0) begin
             c_word = acc_data;                          // 直通(数值范围已保证不溢出)

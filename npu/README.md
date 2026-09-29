@@ -15,6 +15,7 @@ npu/
 ├── tb/tb_npu.v               NPU MMIO 行为测试台
 ├── scripts/                  NPU 仿真和绘图脚本
 ├── docs/NPU_完整设计说明.md   唯一的 NPU 设计说明
+├── docs/NPU波形调试指南.md     GTKWave 波形观察和故障定位指南
 ├── sim/logs/                 NPU 仿真日志
 ├── sim/waves/                NPU VCD 波形
 ├── figures/                  NPU 架构图、波前图和运行波形图
@@ -36,7 +37,7 @@ cd npu
 python3 scripts/run_npu.py
 ```
 
-当前测试台覆盖单 Tile、多 Tile、多 K Tile、非整除边界、小 Tile、负数量化以及两条错误路径，共 7 项测试，预期结果为 `PASS=7 FAIL=0`。
+当前测试台覆盖单 Tile、多 Tile、多 K Tile、非整除边界、小 Tile、负数量化以及五条错误路径，共 10 项测试，预期结果为 `PASS=10 FAIL=0`。
 
 ## 绘图
 
@@ -46,4 +47,4 @@ python3 scripts/draw_wavefront.py
 python3 scripts/draw_wave.py
 ```
 
-完整的模块清单、接口、地址映射、数据布局、时序、错误处理和验证说明见 [NPU_完整设计说明.md](docs/NPU_完整设计说明.md)。
+完整的模块清单、接口、地址映射、数据布局、时序、错误处理和验证说明见 [NPU_完整设计说明.md](docs/NPU_完整设计说明.md)；波形阅读方法见 [NPU波形调试指南.md](docs/NPU波形调试指南.md)。

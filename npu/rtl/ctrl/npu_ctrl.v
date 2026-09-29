@@ -1,5 +1,9 @@
-// npu_ctrl — 调度中心:参数锁存、配置检查、tile 调度、地址生成、
-// 脉动阵列时序(systolic_fsm)、C tile 累加/量化/写回与 core_done。
+// npu_ctrl — NPU 调度中心。
+//
+// 本模块不保存矩阵数据，只负责把一次 GEMM 拆成 Tile，并按以下顺序推动硬件：
+// 参数锁存 -> 配置检查 -> Tile 选择 -> A/BT 预取 -> 阵列喂数/排空
+// -> C partial-sum 累加 -> 量化和写回 -> 统计完成。
+// 通过 start_pulse 锁存后的参数在整个任务期间保持不变。
 `include "npu_defines.vh"
 
 module npu_ctrl(
@@ -33,6 +37,8 @@ module npu_ctrl(
     output wire        bt_stream_valid,
     output wire [31:0] bt_stream_data,
     output wire [3:0]  a_lane_en, bt_lane_en,
+    input  wire        a_stream_ready,
+    input  wire        bt_stream_ready,
     input  wire        array_done,
     input  wire        c_result_valid,
     input  wire [31:0] c_result,
@@ -110,10 +116,13 @@ module npu_ctrl(
     );
 
     // ---- 主状态机 ----
+    // acc_tile_clear 必须在每个输出 Tile 开始时产生，不能只依赖 first_k_tile，
+    // 因为切换 tile_i/tile_j 时也需要清除上一块 C 的部分和。
     wire prefetch_go, ph_array_start, feed_go, drain_en, write_go, feed_last;
     wire fsm_done, err_abort;
     wire pair_fire;
     wire write_done;               // c_tile_write_ctrl 完成
+    wire acc_tile_clear;
 
     systolic_fsm u_systolic_fsm(
         .clk(clk), .rst_n(rst_n),
@@ -147,6 +156,7 @@ module npu_ctrl(
     // ---- 成对送数 ----
     pair_stream_ctrl u_pair_stream_ctrl(
         .feed_go(feed_go),
+        .a_stream_ready(a_stream_ready), .bt_stream_ready(bt_stream_ready),
         .a_fifo_valid(a_fifo_valid), .a_fifo_rdata(a_fifo_rdata),
         .bt_fifo_valid(bt_fifo_valid), .bt_fifo_rdata(bt_fifo_rdata),
         .pair_fire(pair_fire),

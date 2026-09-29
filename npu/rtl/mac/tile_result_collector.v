@@ -19,6 +19,8 @@ module tile_result_collector(
     reg [1:0] state;
     reg [3:0] idx;
 
+    // drain_done 后从 PE[0][0] 到 PE[3][3] 逐拍输出 16 个累加器。
+    // c_result_last 与最后一个结果同拍，collect_done 再延后一拍通知 MAC 状态机。
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= C_IDLE; idx <= 4'd0;

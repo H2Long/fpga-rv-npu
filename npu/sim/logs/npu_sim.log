@@ -7,6 +7,9 @@ VCD info: dumpfile npu_wave.vcd opened for output.
 [化_8x8x8_q2    ] PASS : M=8 N=8 K=8 TM=4 TN=4 TK=8 q=2 | C 写 64 项, 计算耗时 300 周期
 [�错误         ] PASS : DONE+ERROR, ERR_CODE=1
 [量错误       ] PASS : DONE+ERROR, ERR_CODE=3
-==== 结果: PASS=7 FAIL=0 ====
+[零错误       ] PASS : DONE+ERROR, ERR_CODE=2
+[零错误       ] PASS : DONE+ERROR, ERR_CODE=2
+[�零错误      ] PASS : DONE+ERROR, ERR_CODE=4
+==== 结果: PASS=10 FAIL=0 ====
 ALL TESTS PASSED
-/home/hhlong/code/fpga-calss-design/npu/tb/tb_npu.v:257: $finish called at 78980000 (1ps)
+/home/hhlong/code/fpga-calss-design/npu/tb/tb_npu.v:260: $finish called at 80420000 (1ps)

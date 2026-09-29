@@ -1,4 +1,4 @@
-// npu_buffer — 数据存储与搬运平面:A/BT/C RAM、NPU 读端口控制、
+// npu_buffer — 数据存储与搬运平面：A/BT/C RAM、NPU 读端口控制、
 // 预取 FIFO、C 写 FIFO 与 buffer_status。
 // RAM 端口归属:core_busy=1 时 A/BT 读端口归 NPU、C 写端口归写 FIFO;
 //               core_busy=0 时全部归 CPU。
@@ -43,6 +43,8 @@ module npu_buffer(
     output wire        buffer_ready
 );
 
+    // A/BT 在运行期间由 NPU 读，空闲期间由 CPU 读写。
+    // 写端口始终来自 CPU；core_busy=1 时 CPU 写请求在上游被禁止。
     // ---- A RAM 端口归属 ----
     wire [`NPU_ABUF_AW-1:0] a_ram_waddr = cpu_a_addr;
     wire                     a_ram_we    = cpu_a_we;
@@ -88,6 +90,8 @@ module npu_buffer(
     );
     assign c_rdata_cpu = c_ram_rdata;
 
+    // 同步 RAM 的读数据比 read enable 晚一拍返回，npu_read_port_ctrl
+    // 将这个延迟后的 valid 与 RAM 数据一起送入预取 FIFO。
     // ---- NPU 读端口控制:同步读返回 -> FIFO ----
     wire a_fifo_push, bt_fifo_push;
 
@@ -109,6 +113,7 @@ module npu_buffer(
         .rdata(bt_fifo_rdata), .valid(bt_fifo_valid), .count(bt_fifo_count)
     );
 
+    // C 写 FIFO 将结果写回和 C RAM 的实际写脉冲解耦；done_ctrl 统计 c_wr_pulse。
     // ---- C 写 FIFO ----
     c_write_fifo u_c_write_fifo(
         .clk(clk), .rst_n(rst_n), .core_busy(core_busy),
