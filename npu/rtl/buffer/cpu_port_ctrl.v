@@ -1,5 +1,10 @@
-// cpu_port_ctrl — 将 CPU 的局部地址、写数据、byte enable 转换为三块 RAM 的端口操作
-// 写数据按字节使能屏蔽;读地址直接送 RAM 的 CPU 侧端口。
+`timescale 1ns / 1ps
+// cpu_port_ctrl — CPU Buffer 端口适配器
+//
+// addr_decoder 已经把 MMIO 地址转换成 A/BT/C 的局部字地址；本模块只做两件事：
+//   1. 将三路局部地址和读写使能直接传给对应 RAM；
+//   2. 根据 byte_en 对写数据的四个字节进行屏蔽。
+// 本模块不保存请求，也不产生 ready；请求生命周期由 mmio_if 管理。
 `include "npu_defines.vh"
 
 module cpu_port_ctrl(
@@ -23,18 +28,24 @@ module cpu_port_ctrl(
     output wire [31:0] ram_a_wdata, ram_bt_wdata, ram_c_wdata
 );
 
-    wire [31:0] byte_mask = {{8{cpu_buf_byte_en[3]}}, {8{cpu_buf_byte_en[2]}},
-                             {8{cpu_buf_byte_en[1]}}, {8{cpu_buf_byte_en[0]}}};
-    wire [31:0] masked_wdata = cpu_buf_wdata & byte_mask;
+    wire [31:0] byte_mask;
+    wire [31:0] masked_wdata;
+
+    assign byte_mask = {{8{cpu_buf_byte_en[3]}}, {8{cpu_buf_byte_en[2]}},
+                        {8{cpu_buf_byte_en[1]}}, {8{cpu_buf_byte_en[0]}}};
+    assign masked_wdata = cpu_buf_wdata & byte_mask;
 
     assign ram_a_addr  = cpu_a_addr;
     assign ram_bt_addr = cpu_bt_addr;
     assign ram_c_addr  = cpu_c_addr;
-    assign ram_a_we  = cpu_a_we;   assign ram_a_re  = cpu_a_re;
-    assign ram_bt_we = cpu_bt_we;  assign ram_bt_re = cpu_bt_re;
-    assign ram_c_we  = cpu_c_we;   assign ram_c_re  = cpu_c_re;
-    assign ram_a_wdata  = masked_wdata;
-    assign ram_bt_wdata = masked_wdata;
-    assign ram_c_wdata  = masked_wdata;
+    assign ram_a_we      = cpu_a_we;
+    assign ram_a_re      = cpu_a_re;
+    assign ram_bt_we     = cpu_bt_we;
+    assign ram_bt_re     = cpu_bt_re;
+    assign ram_c_we      = cpu_c_we;
+    assign ram_c_re      = cpu_c_re;
+    assign ram_a_wdata   = masked_wdata;
+    assign ram_bt_wdata  = masked_wdata;
+    assign ram_c_wdata   = masked_wdata;
 
 endmodule

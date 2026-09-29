@@ -1,8 +1,11 @@
-// npu_mac — 计算平面。
+`timescale 1ns / 1ps
+// npu_mac — INT8 MAC 计算平面
 //
 // 输入路径把一个 32 位字拆为 4 个 INT8，再用 skew 管线让不同的行/列
 // 在正确的周期相遇。PE 阵列只在 array_enable 时推进；排空阶段没有新输入，
 // 但仍保持 enable，让最后一个波前到达远端 PE。
+// 本模块不做 Tile 调度，也不访问 RAM；它只消费成对的 A/BT stream，
+// 产生 16 个 PE 累加结果。
 `include "npu_defines.vh"
 
 module npu_mac(
@@ -31,9 +34,11 @@ module npu_mac(
     output wire [3:0]  c_result_index
 );
 
-    // ---- 输入拆包 ----
-    wire [7:0] a_l0, a_l1, a_l2, a_l3;   wire a_lv;
-    wire [7:0] b_l0, b_l1, b_l2, b_l3;   wire b_lv;
+    // ---- 输入拆包：一个 32 位字 -> 四个 INT8 lane ----
+    wire [7:0] a_l0, a_l1, a_l2, a_l3;
+    wire       a_lv;
+    wire [7:0] b_l0, b_l1, b_l2, b_l3;
+    wire       b_lv;
 
     a_input_unpacker u_a_input_unpacker(
         .in_valid(a_stream_valid), .in_data(a_stream_data), .lane_en(a_lane_en),
@@ -47,9 +52,11 @@ module npu_mac(
         .lanes_valid(b_lv)
     );
 
-    // ---- 波前对齐 ----
-    wire [7:0] a_sk0, a_sk1, a_sk2, a_sk3;   wire a_sk_v0, a_sk_v1, a_sk_v2, a_sk_v3;
-    wire [7:0] bt_sk0, bt_sk1, bt_sk2, bt_sk3; wire bt_sk_v0, bt_sk_v1, bt_sk_v2, bt_sk_v3;
+    // ---- 波前对齐：第 r 行/第 c 列使用 r/c 拍延迟 ----
+    wire [7:0] a_sk0, a_sk1, a_sk2, a_sk3;
+    wire       a_sk_v0, a_sk_v1, a_sk_v2, a_sk_v3;
+    wire [7:0] bt_sk0, bt_sk1, bt_sk2, bt_sk3;
+    wire       bt_sk_v0, bt_sk_v1, bt_sk_v2, bt_sk_v3;
 
     a_bt_skew_pipeline u_skew(
         .clk(clk), .rst_n(rst_n), .enable(array_enable),
@@ -105,6 +112,7 @@ module npu_mac(
     );
 
     // 当前阵列没有额外的随机反压：feed 和 drain 期间都可以推进。
+    // ready 与 array_enable 同源，pair_stream_ctrl 用它保证只有阵列推进时才 pop FIFO。
     assign a_stream_ready  = array_enable;
     assign bt_stream_ready = array_enable;
 

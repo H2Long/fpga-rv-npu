@@ -1,5 +1,8 @@
-// bt_input_unpacker — 将一拍 BT 数据(32 位字)拆成 Q=4 个有符号 INT8 列 lane,
-// 越界 lane 补零。
+`timescale 1ns / 1ps
+// bt_input_unpacker — 将一拍 BT 数据拆成四个 INT8 列 lane
+//
+// lane_en 由当前 Tile 的 valid_tn 生成；越界列补零，保证边界 Tile 不会
+// 对无效列进行乘加。
 `include "npu_defines.vh"
 
 module bt_input_unpacker(
@@ -14,6 +17,7 @@ module bt_input_unpacker(
     assign lane1 = lane_en[1] ? in_data[15:8]  : 8'h00;
     assign lane2 = lane_en[2] ? in_data[23:16] : 8'h00;
     assign lane3 = lane_en[3] ? in_data[31:24] : 8'h00;
+    // 四个列 lane 与输入字共用同一个 valid。
     assign lanes_valid = in_valid;
 
 endmodule

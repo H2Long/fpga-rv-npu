@@ -1,4 +1,8 @@
+`timescale 1ns / 1ps
 // array_ctrl — 将 FSM 阶段命令转换为 MAC 可直接使用的周期级控制。
+//
+// 该模块是组合译码层，不保存状态。feed_last 当前仅为接口兼容/波形可见性
+// 保留信号；阵列的排空由 drain_en 和 drain_controller 统一控制。
 `include "npu_defines.vh"
 
 module array_ctrl(
@@ -13,7 +17,7 @@ module array_ctrl(
 );
 
     assign array_start    = ph_array_start;
-    assign array_clear_acc= ph_array_start;
+    assign array_clear_acc = ph_array_start;
     assign array_enable   = feed_go || drain_en;   // 喂数与排空期间阵列持续推进
     assign array_flush    = drain_en;
 

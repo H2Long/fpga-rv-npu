@@ -1,5 +1,7 @@
-// tile_param_latch — start_pulse 到来时锁存 M/N/K/TM/TN/TK/QUANT,
-// 运行期间软件寄存器变化不会影响当前任务。
+`timescale 1ns / 1ps
+// tile_param_latch — 任务参数快照寄存器
+// start_pulse 到来时一次性锁存 M/N/K/TM/TN/TK/QUANT；运行期间软件继续
+// 写控制寄存器只改变下一次任务的配置，不影响当前任务使用的 lp_*。
 `include "npu_defines.vh"
 
 module tile_param_latch(

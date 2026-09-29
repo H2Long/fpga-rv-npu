@@ -1,6 +1,8 @@
-// output_reorder — 将 PE 物理坐标转换为 C tile 行主序下标:
-//   c_result_index = row * Q + column
-// 收集器按行主序扫描时该映射为恒等,保留此级以显式承载坐标语义。
+`timescale 1ns / 1ps
+// output_reorder — 将 PE 物理坐标转换为 C Tile 行主序下标
+// scan_index={row[1:0],col[1:0]}，输出 row*Q+col。
+// 当前 collector 本身按行主序扫描，因此结果是恒等映射；保留独立模块
+// 是为了把“物理 PE 编号”和“C 矩阵逻辑编号”边界明确隔开。
 `include "npu_defines.vh"
 
 module output_reorder(

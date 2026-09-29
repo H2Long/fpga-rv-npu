@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // pe_array — 4x4 PE 阵列:A 从左向右传播,BT 从上向下传播,
 // PE[r][c] 累加 C[r][c] = sum_k A[r][k] * BT[c][k](输出驻留)。
 // a_lanes[7:0]+r*8 = 行 r 的最左输入;bt_lanes[7:0]+c*8 = 列 c 的最上输入。

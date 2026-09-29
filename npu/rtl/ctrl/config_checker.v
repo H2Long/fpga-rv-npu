@@ -1,6 +1,12 @@
+`timescale 1ns / 1ps
 // config_checker — 启动前检查配置合法性
-//  1: M/N/K 为 0          2: TM>P 或 TN>Q 或 TM/TN 为 0
-//  3: 矩阵占用超过 Buffer 容量  4: TK 为 0 / TK>K / TK>16(FIFO 深度)
+//
+// 错误优先级与错误码：
+//   1. M/N/K 为 0                         -> NPU_ERR_DIM_ZERO
+//   2. TM/TN 为 0 或超过 4x4 阵列          -> NPU_ERR_TILE_GT_ARRAY
+//   3. TK 为 0、TK>K 或超过 FIFO 深度       -> NPU_ERR_TK_INVALID
+//   4. A/BT/C 所需存储量超过 Buffer 容量    -> NPU_ERR_BUF_OVERFLOW
+// cfg_ok 只有在全部检查通过时为 1。
 `include "npu_defines.vh"
 
 module config_checker(
@@ -16,6 +22,8 @@ module config_checker(
     integer a_words, bt_words, c_words;
 
     // 这里使用整数计算容量，不参与数据通路，只在启动前给 FSM 提供 cfg_ok/error_code。
+    // A/BT 每个 32 位字装四个 INT8，但地址容量按“打包后的字数”计算。
+    // 第一段组合逻辑只计算容量，避免在错误检查表达式中重复做除法。
     always @(*) begin
         a_words  = 0;
         bt_words = 0;
@@ -29,6 +37,7 @@ module config_checker(
     reg        cfg_ok_r;
     reg [`NPU_ERR_W-1:0] err_code_r;
 
+    // 第二段组合逻辑按固定优先级给出唯一错误码。
     always @(*) begin
         cfg_ok_r   = 1'b1;
         err_code_r = `NPU_ERR_NONE;

@@ -1,6 +1,10 @@
+`timescale 1ns / 1ps
 // start_ctrl — 管理一整次任务的生命周期 IDLE -> RUNNING -> DONE -> IDLE
-// 空闲时接受 start_req,锁存全部配置并产生单拍 start_pulse;
-// 运行期间保持 BUSY;收到 core_done 后保持 DONE;clear_done 后回 IDLE。
+//
+// IDLE：接受 start_req，锁存全部配置并产生一个时钟周期的 start_pulse。
+// RUN ：保持 BUSY=1，忽略新的 start_req，直到 core_done_i 到来。
+// DONE：保持 DONE=1；只有收到 clear_done_req 才回到 IDLE。
+// 因此向 CTRL(0x00) 写 0x02 的作用是 DONE -> IDLE，不会清除配置寄存器。
 `include "npu_defines.vh"
 
 module start_ctrl(

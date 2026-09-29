@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // npu_ctrl — NPU 调度中心。
 //
 // 本模块不保存矩阵数据，只负责把一次 GEMM 拆成 Tile，并按以下顺序推动硬件：

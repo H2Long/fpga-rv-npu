@@ -1,4 +1,7 @@
-// mac_status — 汇总 MAC Tile 完成状态。
+`timescale 1ns / 1ps
+// mac_status — 汇总一个 MAC Tile 的完成状态
+// collect_done 是 collector 的完成脉冲；本模块将其原样打一拍输出
+// array_done，供 systolic_fsm 从 RECEIVE_RESULT 状态离开。
 `include "npu_defines.vh"
 
 module mac_status(
@@ -12,6 +15,7 @@ module mac_status(
         if (!rst_n) begin
             array_done <= 1'b0;
         end else begin
+            // array_done 是单拍脉冲，不能保持到下一个 Tile。
             array_done <= 1'b0;
             if (collect_done) begin
                 array_done <= 1'b1;

@@ -1,5 +1,8 @@
-// result_quantizer — ACC_W 位累加结果 -> 32 位 C 字:
-//   acc + (1<<(s-1)) >> s(四舍五入右移,s=0 直通) -> 饱和到有符号 32 位
+`timescale 1ns / 1ps
+// result_quantizer — ACC_W 位有符号累加结果到 32 位 C 字
+//
+// qshift=0 时直接输出；qshift>0 时先加 2^(qshift-1) 做四舍五入，
+// 再执行算术右移，最后饱和到有符号 32 位范围 [-2^31, 2^31-1]。
 `include "npu_defines.vh"
 
 module result_quantizer(
@@ -8,6 +11,7 @@ module result_quantizer(
     output reg  [31:0] c_word
 );
 
+    // 64 位中间量为舍入加法和负数算术右移提供足够符号位。
     reg signed [63:0] t;
 
     // 中间量显式扩展到 64 位并按有符号数右移，避免负数被零扩展。

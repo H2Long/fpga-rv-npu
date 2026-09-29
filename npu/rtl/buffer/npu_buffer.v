@@ -1,7 +1,11 @@
-// npu_buffer — 数据存储与搬运平面：A/BT/C RAM、NPU 读端口控制、
-// 预取 FIFO 和 C 写 FIFO。
-// RAM 端口归属:core_busy=1 时 A/BT 读端口归 NPU、C 写端口归写 FIFO;
-//               core_busy=0 时全部归 CPU。
+`timescale 1ns / 1ps
+// npu_buffer — 数据存储与搬运平面
+//
+// 组成：A/BT/C 三块同步 RAM、A/BT 预取 FIFO、C 结果写回 FIFO。
+// 端口所有权：
+//   core_busy=0：CPU 可以读写三块 Buffer；
+//   core_busy=1：A/BT 读端口交给 NPU，C 写端口交给写回 FIFO，
+//               上游 buffer_access_ctrl 会屏蔽 CPU 的 Buffer 访问。
 `include "npu_defines.vh"
 
 module npu_buffer(
@@ -44,7 +48,8 @@ module npu_buffer(
 );
 
     // A/BT 在运行期间由 NPU 读，空闲期间由 CPU 读写。
-    // 写端口始终来自 CPU；core_busy=1 时 CPU 写请求在上游被禁止。
+    // 写端口始终来自 CPU；core_busy=1 时 CPU 写请求在上游被禁止，
+    // 因此不会出现 CPU 写端口与 NPU 读端口争用同一 RAM 的情况。
     // ---- A RAM 端口归属 ----
     wire [`NPU_ABUF_AW-1:0] a_ram_waddr = cpu_a_addr;
     wire                     a_ram_we    = cpu_a_we;
@@ -59,7 +64,7 @@ module npu_buffer(
     );
     assign a_rdata_cpu = a_ram_rdata;
 
-    // ---- BT RAM 端口归属 ----
+    // ---- BT RAM 端口归属：与 A RAM 同构 ----
     wire [`NPU_BBUF_AW-1:0] bt_ram_waddr = cpu_bt_addr;
     wire                     bt_ram_we    = cpu_bt_we;
     wire [`NPU_BBUF_AW-1:0] bt_ram_raddr = core_busy ? npu_bt_addr : cpu_bt_addr;
@@ -74,6 +79,7 @@ module npu_buffer(
     assign bt_rdata_cpu = bt_ram_rdata;
 
     // ---- C RAM 端口归属 ----
+    // C RAM 写端在空闲时来自 CPU，运行时来自 c_write_fifo；读端保留给 CPU。
     wire [`NPU_CBUF_AW-1:0] cwf_addr;   // c_write_fifo -> C RAM
     wire                     cwf_we;
     wire [31:0]              cwf_data;

@@ -1,4 +1,6 @@
-// bt_prefetch_fifo — 缓存 BT RAM 返回数据
+`timescale 1ns / 1ps
+// bt_prefetch_fifo — 缓存 BT RAM 返回数据。
+// 它与 a_prefetch_fifo 结构相同，但保存的是 BT 通道数据。
 `include "npu_defines.vh"
 
 module bt_prefetch_fifo(

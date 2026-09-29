@@ -1,5 +1,17 @@
+`timescale 1ns / 1ps
 // control_regs — 保存软件配置并产生 start / clear_done 命令脉冲
-// 0x00 CTRL | 0x04 M | 0x08 N | 0x0C K | 0x10 TM | 0x14 TN | 0x18 TK | 0x1C QUANT(右移位数)
+//
+// 控制寄存器地址：
+//   0x00 CTRL  bit0=1: 启动一次 NPU 任务；bit1=1: 清除 DONE 状态
+//   0x04 M     矩阵行数
+//   0x08 N     矩阵列数
+//   0x0C K     内积长度
+//   0x10 TM    M 方向 Tile 大小
+//   0x14 TN    N 方向 Tile 大小
+//   0x18 TK    K 方向 Tile 大小
+//   0x1C QUANT 量化右移位数
+// CTRL 是命令寄存器，不保存 bit0/bit1；例如写 0x02 只产生 clear_done_req，
+// 不会启动运算，回读 CTRL 时 bit0/bit1 始终为 0。
 `include "npu_defines.vh"
 
 module control_regs(
@@ -23,11 +35,16 @@ module control_regs(
     output wire [31:0] control_rdata
 );
 
+    // req_valid 只在 mmio_if 发布一笔已锁存的请求时有效一个周期。
+    // 因此 wr 是“实际执行写入”的条件，不是简单地表示 cpu_we=1。
     // 配置寄存器均位于一个 32 位字的低字节；只接受 byte_en[0] 有效的写入。
     // 这样字节写和整字写的行为一致，同时不会误修改高位保留字段。
     wire wr = req_valid && sel_ctrl && req_we;
     wire byte0_wr = wr && req_byte_en[0];
 
+    // 这两个信号是命令脉冲：只有写 0x00 CTRL 且低字节有效时才产生。
+    // 写入 CTRL=0x01 -> start_req=1；写入 CTRL=0x02 -> clear_done_req=1。
+    // 若同时写 CTRL=0x03，两个命令都会产生；start_ctrl 仅在对应状态接受命令。
     assign start_req      = byte0_wr && (ctrl_reg_off == 3'd0) && req_wdata[0];
     assign clear_done_req = byte0_wr && (ctrl_reg_off == 3'd0) && req_wdata[1];
 
@@ -49,7 +66,8 @@ module control_regs(
         end
     end
 
-    // 寄存器回读(字读)。CTRL 本身是命令寄存器，不保存 start/clear 状态。
+    // 寄存器回读(字读)。CTRL 本身是命令寄存器，不保存 start/clear 状态；
+    // 所以读 0x00 得到 0，而不是得到上一次写入的 0x01/0x02。
     assign control_rdata =
         (ctrl_reg_off == 3'd0) ? {30'd0, 2'b00}            :
         (ctrl_reg_off == 3'd1) ? {26'd0, cfg_m}            :

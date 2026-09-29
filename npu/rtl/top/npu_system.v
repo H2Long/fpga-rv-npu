@@ -1,17 +1,13 @@
-// npu_system — NPU 唯一系统顶层。
+`timescale 1ns / 1ps
+// npu_system — NPU 唯一系统顶层
 //
-// 四个功能平面的边界固定在这里：
+// 四个功能平面的边界固定在这里，顶层只负责端口连接，不执行算法：
 //   npu_top    处理 CPU MMIO、配置寄存器和 CPU/Buffer 访问仲裁；
 //   npu_ctrl   处理 Tile 循环、地址生成、阵列时序和 C 写回；
 //   npu_buffer 处理 A/BT/C RAM、预取 FIFO 和 C 写 FIFO；
 //   npu_mac    处理 INT8 拆包、波前对齐、PE 阵列和结果收集。
-// 控制:CPU -> npu_top -> npu_ctrl -> npu_mac
-// 数据:A/BT Buffer -> FIFO -> npu_mac -> C 结果 FIFO -> C Buffer
-//
-// 控制:CPU -> npu_top -> npu_ctrl -> npu_mac
-// A:   A Buffer -> A FIFO -> pair_stream_ctrl -> MAC
-// BT:  BT Buffer -> BT FIFO -> pair_stream_ctrl -> MAC
-// C:   MAC -> c_tile_acc_ctrl -> quantizer -> c_tile_write_ctrl -> C write FIFO -> C Buffer
+// 控制路径：CPU -> npu_top -> npu_ctrl -> npu_mac。
+// 数据路径：A/BT Buffer -> 预取 FIFO -> MAC -> C 结果 FIFO -> C Buffer。
 `include "npu_defines.vh"
 
 module npu_system(

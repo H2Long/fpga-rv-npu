@@ -1,7 +1,9 @@
-// a_bt_skew_pipeline — 脉动波前对齐:
-//   A 行 r 延迟 r 拍,BT 列 c 延迟 c 拍(data 与 valid 同步延迟)
-// 使 A[r][k] 与 BT[c][k] 恰好在 PE[r][c] 的输入端同一拍到达。
-// 整个管线受 array_enable 门控,阵列暂停时保持。
+`timescale 1ns / 1ps
+// a_bt_skew_pipeline — 脉动阵列输入波前对齐
+//
+// A 的第 r 行延迟 r 拍，BT 的第 c 列延迟 c 拍，且 data 与 valid 使用
+// 完全相同的寄存器级数。这样 A[r][k] 与 BT[c][k] 才会在 PE[r][c]
+// 的输入端同一拍到达。array_enable=0 时所有级保持，暂停不会丢失波前。
 `include "npu_defines.vh"
 
 module a_bt_skew_pipeline(
@@ -22,14 +24,14 @@ module a_bt_skew_pipeline(
     output wire        bt_sk_v0, bt_sk_v1, bt_sk_v2, bt_sk_v3
 );
 
-    // A lane1: 1 级延迟
+    // A lane1：1 级延迟；lane0 直接旁路。
     reg [7:0] a1_r;  reg a1_v;
     // A lane2: 2 级延迟
     reg [7:0] a2_r0, a2_r1;  reg a2_v0, a2_v1;
     // A lane3: 3 级延迟
     reg [7:0] a3_r0, a3_r1, a3_r2;  reg a3_v0, a3_v1, a3_v2;
 
-    // BT 同构
+    // BT 侧结构同构：lane1/2/3 分别延迟 1/2/3 拍。
     reg [7:0] b1_r;  reg b1_v;
     reg [7:0] b2_r0, b2_r1;  reg b2_v0, b2_v1;
     reg [7:0] b3_r0, b3_r1, b3_r2;  reg b3_v0, b3_v1, b3_v2;
@@ -45,6 +47,7 @@ module a_bt_skew_pipeline(
             b3_r0 <= 8'd0; b3_r1 <= 8'd0; b3_r2 <= 8'd0;
             b3_v0 <= 1'b0; b3_v1 <= 1'b0; b3_v2 <= 1'b0;
         end else if (enable) begin
+            // 每一级同时寄存数据和 valid，不能只延迟数据，否则无效数据会被 PE 累加。
             // A lane1
             a1_r <= a_in1; a1_v <= a_in_v;
             // A lane2

@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // pair_stream_ctrl — 保证 A 和 BT 在同一拍成对进入 MAC。
 //
 // FIFO 的 valid 表示数据已经在队头稳定，MAC 的 ready 表示本拍能够接收。
@@ -22,7 +23,10 @@ module pair_stream_ctrl(
     output wire [31:0] bt_stream_data
 );
 
-    // pair_fire 同时也是两侧 FIFO 的 pop 和 MAC 的 valid。
+    // pair_fire 是唯一的“成对消费”事件：
+    //   - 它同时弹出 A/BT 两侧 FIFO；
+    //   - 它同时拉高两个 stream_valid；
+    //   - 因此两个矩阵的 K 序号永远保持一致。
     assign pair_fire = feed_go && a_stream_ready && bt_stream_ready &&
                        a_fifo_valid && bt_fifo_valid;
 

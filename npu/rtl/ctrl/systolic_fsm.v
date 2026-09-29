@@ -1,8 +1,15 @@
-// systolic_fsm — 控制一个 C tile 的完整生命周期:
-// IDLE -> CHECK_CONFIG -> LOAD_TILE_PARAM -> CLEAR_C_TILE
-//      -> PREFETCH_INPUT -> ARRAY_START -> ARRAY_FEED -> ARRAY_DRAIN
-//      -> RECEIVE_RESULT -> NEXT_K_OR_WRITE -> WRITE_C_TILE
-//      -> NEXT_OUTPUT_TILE -> DONE
+`timescale 1ns / 1ps
+// systolic_fsm — 一个输出 Tile 的主时序状态机
+//
+// 状态顺序：
+//   IDLE -> CHECK_CONFIG -> LOAD_TILE_PARAM -> CLEAR_C_TILE
+//        -> PREFETCH_INPUT -> ARRAY_START -> ARRAY_FEED -> ARRAY_DRAIN
+//        -> RECEIVE_RESULT -> NEXT_K_OR_WRITE -> WRITE_C_TILE
+//        -> NEXT_OUTPUT_TILE -> DONE
+//
+// 每个状态只产生自己负责的控制信号；带 pulse/phase 前缀的输出在时序块
+// 开头默认清零，保证它们只持续一个时钟周期。feed_go、prefetch_go、
+// drain_en、write_go 是状态电平，分别覆盖对应硬件阶段。
 `include "npu_defines.vh"
 
 module systolic_fsm(
@@ -53,12 +60,13 @@ module systolic_fsm(
     localparam S_RECEIVE_RESULT  = 4'd8;
     localparam S_NEXT_K_OR_WRITE = 4'd9;
     localparam S_WRITE_C_TILE    = 4'd10;
-    localparam S_NEXT_OUTPUT_TILE= 4'd11;
+    localparam S_NEXT_OUTPUT_TILE = 4'd11;
     localparam S_DONE            = 4'd12;
 
     reg [3:0]  state;
     reg [5:0]  feed_cnt;      // 已送入的 A/BT 数据对数
 
+    // 只要离开 IDLE，Buffer 端口和任务状态就属于 NPU。
     assign core_busy = (state != S_IDLE);
     assign fsm_done  = (state == S_DONE);
 
@@ -78,7 +86,7 @@ module systolic_fsm(
             error_code <= `NPU_ERR_NONE;
             feed_cnt <= 6'd0;
         end else begin
-            // 默认单拍/电平信号
+            // 默认单拍信号清零；电平信号在各状态分支中显式拉高。
             sched_init <= 1'b0; next_k_req <= 1'b0; next_out_req <= 1'b0;
             acc_tile_clear <= 1'b0; ph_array_start <= 1'b0;
             err_abort <= 1'b0; feed_last <= 1'b0;
@@ -92,6 +100,7 @@ module systolic_fsm(
                 end
 
                 S_CHECK_CONFIG: begin
+                    // 配置错误不进入数据通路，直接记录错误码并结束任务。
                     if (!cfg_ok) begin
                         error_code <= chk_err_code;
                         err_abort  <= 1'b1;
@@ -114,6 +123,7 @@ module systolic_fsm(
 
                 // 预取阶段不推进 PE，只等待两个 FIFO 都装满当前 K tile。
                 S_PREFETCH_INPUT: begin
+                    // A/BT 流控制器在 prefetch_go 期间连续发 valid_tk 个 RAM 读。
                     prefetch_go <= 1'b1;
                     feed_cnt    <= 6'd0;   // 每个 K tile 重新计数(K 间不经过 CLEAR_C_TILE)
                     if (prefetch_done) begin
@@ -124,12 +134,14 @@ module systolic_fsm(
 
                 // 单拍启动阵列并清空 PE 累加器；下一拍才开始送入有效数据。
                 S_ARRAY_START: begin
+                    // 只发起一次阵列启动脉冲；真正的输入在下一状态送入。
                     ph_array_start <= 1'b1;    // 阵列启动 + PE 累加器清零
                     state <= S_ARRAY_FEED;
                 end
 
                 // A/BT 必须成对 fire。最后一对被接受后立即停止 feed，下一阶段只排空。
                 S_ARRAY_FEED: begin
+                    // pair_fire 表示 A/BT 同时从 FIFO 出队并被 MAC 接收。
                     feed_go <= 1'b1;
                     if (pair_fire) begin
                         feed_cnt <= feed_cnt + 6'd1;
@@ -143,6 +155,7 @@ module systolic_fsm(
 
                 // 阵列继续 enable，让最后的波前穿过 PE；array_done 表示结果流已收完。
                 S_ARRAY_DRAIN: begin
+                    // 停止新输入但保持阵列推进，让最后一组波前抵达远端 PE。
                     drain_en <= 1'b1;           // 阵列继续推进 + 排空(P+Q-2 拍)
                     if (array_done) begin       // 16 个结果已串行流出
                         drain_en <= 1'b0;
@@ -151,6 +164,7 @@ module systolic_fsm(
                 end
 
                 S_RECEIVE_RESULT: begin
+                    // MAC 串行输出 16 个 PE 累加值，收集完成后才进入下一阶段。
                     state <= S_NEXT_K_OR_WRITE; // 结果已被 c_tile_acc_ctrl 消费
                 end
 
@@ -165,6 +179,7 @@ module systolic_fsm(
 
                 // write_done 只有在 C 写 FIFO 排空且所有有效 lane 已入队后才会成立。
                 S_WRITE_C_TILE: begin
+                    // c_tile_write_ctrl 会跳过边界无效 lane，并等待 C 写 FIFO 排空。
                     write_go <= 1'b1;
                     if (write_done) begin
                         write_go <= 1'b0;

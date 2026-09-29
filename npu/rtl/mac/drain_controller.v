@@ -1,5 +1,9 @@
-// drain_controller — 最后一对输入进入后,等待波前传播到阵列最远端:
-// 基础排空距离 P+Q-2 = 6 个使能拍(此后 PE[3][3] 的最后一次乘加已锁存)。
+`timescale 1ns / 1ps
+// drain_controller — 阵列排空计数器
+//
+// 最后一对输入进入后，仍需等待波前传播到最远端 PE。
+// 对 P x Q 阵列，基础距离为 P+Q-2；当前 4x4 阵列为 6 个 enable 拍。
+// 只在 array_flush && array_enable 时计数，阵列暂停时计数器也暂停。
 `include "npu_defines.vh"
 
 module drain_controller(
@@ -22,6 +26,7 @@ module drain_controller(
             cnt <= 3'd0; drain_done <= 1'b0;
         end else if (array_flush && array_enable && !drain_done) begin
             if (cnt == DRAIN_BEATS-1)
+                // 本拍完成最后一次排空推进，下一拍通知 collector。
                 drain_done <= 1'b1;
             else
                 cnt <= cnt + 3'd1;

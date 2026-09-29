@@ -1,5 +1,9 @@
-// done_ctrl — 只有最后一个输出 tile 的最后一笔 C 写真正写入 C RAM 后才产生 core_done;
-// 配置错误时立即 core_done(带错误码)。不能在结果仅进入写 FIFO 时提前完成。
+`timescale 1ns / 1ps
+// done_ctrl — 任务完成判定
+//
+// c_wr_pulse 是 C RAM 的实际写脉冲，而不是 FIFO 入队脉冲。
+// 只有 FSM 已经到达 DONE 且 wr_cnt_next >= M*N 时，才产生一个周期的 core_done。
+// 配置错误由 err_abort 直接结束任务；done_seen 防止同一任务重复发出完成脉冲。
 `include "npu_defines.vh"
 
 module done_ctrl(
@@ -19,9 +23,12 @@ module done_ctrl(
     reg [TOTAL_W-1:0] wr_cnt;
     reg               done_seen;
 
-    wire [TOTAL_W-1:0] wr_cnt_next = wr_cnt + {8'd0, c_wr_pulse};
-    wire fire = !done_seen &&
-                ((fsm_done && (wr_cnt_next >= total)) || err_abort);
+    wire [TOTAL_W-1:0] wr_cnt_next;
+    wire               fire;
+
+    assign wr_cnt_next = wr_cnt + {{(TOTAL_W-1){1'b0}}, c_wr_pulse};
+    assign fire = !done_seen &&
+                  ((fsm_done && (wr_cnt_next >= total)) || err_abort);
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

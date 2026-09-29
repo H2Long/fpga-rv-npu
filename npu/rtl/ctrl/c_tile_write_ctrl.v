@@ -1,7 +1,13 @@
-// c_tile_write_ctrl — 按 tile 内 (r,c) 串行读出累加器 -> 量化 -> 生成 C 字地址 ->
-// 写入 c_write_fifo。越界 lane(r>=valid_tm 或 c>=valid_tn)不写回。
-// write_done 在全部条目入队且 FIFO 排空后置位(core_done 的前提)。
-// 累加器读出与量化均为组合链:acc[acc_rd_idx] -> result_quantizer -> cwr_data。
+`timescale 1ns / 1ps
+// c_tile_write_ctrl — 输出 Tile 写回控制
+//
+// 每拍扫描一个物理 lane：
+//   1. acc_rd_idx 选择一个 PE 累加器；
+//   2. result_quantizer 组合地产生 quant_word；
+//   3. 有效 lane 且 FIFO 不满时产生 cwr_valid，并推进 idx。
+// 边界 Tile 中 r>=valid_tm 或 c>=valid_tn 的 lane 不写回，但 idx 仍跳过。
+// idx=16 表示 16 个物理 lane 已扫描完；write_done 还要等待 cwr_empty，
+// 确保最后一项已经真正写入 C RAM。
 `include "npu_defines.vh"
 
 module c_tile_write_ctrl(
@@ -31,10 +37,11 @@ module c_tile_write_ctrl(
     wire       lane_ok = (idx < 5'd16) &&
                          ({1'b0, r} < valid_tm) && ({1'b0, c} < valid_tn);
 
-    // 组合推进:有效 lane 且 FIFO 有空间时入队并前进;无效 lane 直接跳过
+    // 组合推进：有效 lane 且 FIFO 有空间时入队并前进；无效 lane 直接跳过。
     wire advance = (idx < 5'd16) && (lane_ok ? cwr_ready : 1'b1);
 
     assign acc_rd_idx = idx[3:0];             // 组合直出,与 r/c 同源
+    // cwr_valid 与 cwr_ready 相与，表示本拍一定能完成一次 FIFO 入队。
     assign cwr_valid  = write_go && lane_ok && cwr_ready;
     wire [`NPU_CBASE_W+1:0] c_addr_full = c_base + r * n_dim + c;
     assign cwr_addr   = c_addr_full[`NPU_CBUF_AW-1:0];

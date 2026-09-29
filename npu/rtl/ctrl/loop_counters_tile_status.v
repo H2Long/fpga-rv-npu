@@ -1,5 +1,9 @@
-// loop_counters_tile_status — 由 tile 计数器生成边界与调度状态:
-// first_k_tile / last_k_tile / last_output_tile / valid_tm / valid_tn / valid_tk
+`timescale 1ns / 1ps
+// loop_counters_tile_status — 从 Tile 计数器派生边界状态
+//
+// nt_i/nt_j/nt_k 是三个维度需要执行的 Tile 数量，采用向上取整。
+// valid_tm/valid_tn/valid_tk 是当前 Tile 实际有效的尺寸；边界 Tile 可能
+// 小于配置的 TM/TN/TK，越界输入由 lane_en 补零，越界 C 元素由写回控制过滤。
 `include "npu_defines.vh"
 
 module loop_counters_tile_status(
@@ -26,7 +30,8 @@ module loop_counters_tile_status(
     assign last_k_tile      = (tile_k + 5'd1 >= nt_k);
     assign last_output_tile = (tile_i + 5'd1 >= nt_i) && (tile_j + 5'd1 >= nt_j);
 
-    // 边界有效尺寸(越界部分由流控制补零 / 写回过滤)
+    // 边界有效尺寸(越界部分由流控制补零 / 写回过滤)。
+    // 配置检查保证任务运行时 lp_* 非零，因此这里不会发生非法减法路径。
     wire [`NPU_DIM_W-1:0] rem_m = lp_m - tile_i * lp_tm;   // 该 tile 起点后剩余行数, > 0
     wire [`NPU_DIM_W-1:0] rem_n = lp_n - tile_j * lp_tn;
     wire [`NPU_DIM_W-1:0] rem_k = lp_k - tile_k * lp_tk;

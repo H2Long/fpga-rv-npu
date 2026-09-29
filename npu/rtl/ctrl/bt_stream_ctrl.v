@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // bt_stream_ctrl — BT tile 读流控制:功能与 a_stream_ctrl 相同,访问转置矩阵 BT。
 `include "npu_defines.vh"
 

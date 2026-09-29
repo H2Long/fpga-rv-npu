@@ -1,5 +1,13 @@
-// tile_scheduler — 三层分块循环 for tile_i { for tile_j { for tile_k } } 的计数器策略
-// 保存并推进 tile_i/tile_j/tile_k,输出给 loop_counters_tile_status 生成状态信号。
+`timescale 1ns / 1ps
+// tile_scheduler — 三层 Tile 循环计数器
+//
+// 循环顺序等价于：
+//   for tile_i = 0 .. nt_i-1
+//     for tile_j = 0 .. nt_j-1
+//       for tile_k = 0 .. nt_k-1
+//
+// next_k_req 只推进 K 维；next_out_req 完成当前输出 Tile 后清零 tile_k，
+// 再推进 tile_j，tile_j 到末尾时回零并推进 tile_i。
 `include "npu_defines.vh"
 
 module tile_scheduler(

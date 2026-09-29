@@ -1,9 +1,11 @@
-// pe_cell — 单个处理单元。
+`timescale 1ns / 1ps
+// pe_cell — 单个处理单元(Processing Element, PE)
 //
 // A 向右传播、BT 向下传播；acc 是输出驻留累加器。
 // enable=0 时所有状态保持，clear_acc 优先级高于 enable，用于切换 Tile 时冲刷波前。
-//   有效周期: acc += signed(a_in) * signed(bt_in)
+//   有效周期：acc += signed(a_in) * signed(bt_in)
 //   a_out/bt_out 为寄存转发(各 1 拍传播延迟)
+// 输入数据和 valid 必须保持同拍；两个 valid 同时为 1 才允许累加。
 `include "npu_defines.vh"
 
 module pe_cell(
@@ -22,8 +24,10 @@ module pe_cell(
     output reg  [`NPU_ACC_W-1:0] acc
 );
 
-    wire signed [`NPU_ACC_W-1:0] prod_ext =
-        $signed(a_in) * $signed(bt_in);   // INT8 x INT8, 符号扩展进 32 位
+    wire signed [`NPU_ACC_W-1:0] prod_ext;
+
+    // 显式按有符号 INT8 相乘，再扩展到累加器位宽，避免 Verilog 无符号扩展。
+    assign prod_ext = $signed(a_in) * $signed(bt_in);
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

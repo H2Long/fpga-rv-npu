@@ -1,20 +1,23 @@
 // npu_defines.vh — NPU 全局参数(所有模块共用)
+//
+// 约定：除 MMIO 对外地址外，NPU 内部 Buffer 地址均为 32 位字地址；
+// 参数宏集中放在本文件，避免各模块重复写常量导致位宽和容量不一致。
 `ifndef NPU_DEFINES_VH
 `define NPU_DEFINES_VH
 
-// 脉动阵列规模 P x Q
+// 脉动阵列规模 P x Q；pe_array、lane_en 和排空计数均依赖这两个宏。
 `define NPU_P 4
 `define NPU_Q 4
 
 // PE 累加器宽度(INT8 x INT8, K<=16 时最大 |acc| = 16*127*128 < 2^22, 取 32 位留量化余量)
 `define NPU_ACC_W 32
 
-// Buffer 容量
+// Buffer 容量：地址宽度 AW 对应 2^AW 个 32 位字。
 `define NPU_ABUF_AW 6          // A Buffer  64 x 32bit = 256 个 INT8
 `define NPU_BBUF_AW 6          // BT Buffer 64 x 32bit
 `define NPU_CBUF_AW 8          // C Buffer  256 x 32bit, 一个字存一个 C 元素
 
-// FIFO 深度(16 字), TK 最大 16
+// FIFO 深度(16 字)，TK 最大 16；NPU_FIFO_AW=5 还为 count 保留满/空区分位。
 `define NPU_FIFO_AW 5
 
 // 参数位宽

@@ -1,5 +1,9 @@
-// tile_result_collector — 排空完成后串行输出 16 个 PE 累加结果(每拍一个),
-// 全部输出后产生单拍 collect_done。
+`timescale 1ns / 1ps
+// tile_result_collector — PE 累加结果串行收集器
+//
+// drain_done_i 到来后，从 PE[0][0] 开始逐拍输出 16 个累加器。
+// c_result_valid 与 c_result/c_scan_index 同拍有效；最后一个结果之后
+// 再产生一个周期的 collect_done，随后保持在 C_HOLD，直到下一个 array_start。
 `include "npu_defines.vh"
 
 module tile_result_collector(
@@ -35,6 +39,7 @@ module tile_result_collector(
                     end
                 end
                 C_STREAM: begin
+                    // idx 在 0..15 扫描，acc_flat 使用每个累加器的固定切片。
                     c_result_valid <= 1'b1;
                     c_result       <= acc_flat[idx*`NPU_ACC_W +: `NPU_ACC_W];
                     c_scan_index   <= idx;

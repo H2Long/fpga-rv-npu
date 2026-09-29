@@ -1,6 +1,15 @@
-// npu_top — CPU 控制平面:MMIO 协议、地址译码、控制/状态寄存器、任务启动与访问仲裁
-// 内含 7 个模块:mmio_if / addr_decoder / control_regs / status_regs /
-//               start_ctrl / buffer_access_ctrl / cpu_port_ctrl
+`timescale 1ns / 1ps
+// npu_top — CPU 控制平面
+//
+// 本模块把 CPU 的 MMIO 总线拆成三个方向：
+//   1. 控制寄存器：保存 M/N/K、TM/TN/TK、量化参数；
+//   2. 状态寄存器：返回 BUSY、DONE、ERROR、BUFFER_READY 和错误码；
+//   3. Buffer 端口：把 0x1000/0x2000/0x3000 地址窗口转换成 RAM 操作。
+//
+// start_ctrl 在 start_req 到来时锁存配置并产生 start_pulse，运行期间软件
+// 再写配置寄存器不会修改当前任务使用的参数。
+// 内含模块：mmio_if / addr_decoder / control_regs / status_regs /
+//           start_ctrl / buffer_access_ctrl / cpu_port_ctrl
 `include "npu_defines.vh"
 
 module npu_top(
@@ -37,7 +46,7 @@ module npu_top(
     input  wire        buffer_ready_i
 );
 
-    // ---- 内部连线 ----
+    // ---- 内部连线：MMIO 锁存请求 ----
     wire [31:0] req_addr, req_wdata;
     wire [3:0]  req_byte_en;
     wire        req_we, req_valid;
@@ -50,7 +59,7 @@ module npu_top(
 
     wire [31:0] control_rdata, status_rdata, buffer_rdata;
 
-    // start_ctrl 的锁存参数
+    // start_ctrl 的锁存参数：任务开始后由 m_l..qs_l 保持到任务结束。
     wire [`NPU_DIM_W-1:0]  m_l, n_l, k_l;
     wire [`NPU_TILE_W-1:0] tm_l, tn_l;
     wire [`NPU_TK_W-1:0]   tk_l;
@@ -69,7 +78,8 @@ module npu_top(
     wire [31:0] cpu_buf_wdata;
     wire [3:0]  cpu_buf_byte_en;
 
-    // cpu_port_ctrl 输出的(按字节使能屏蔽后的)写数据桥接到对外 RAM 端口
+    // cpu_port_ctrl 输出的(按字节使能屏蔽后的)写数据桥接到对外 RAM 端口。
+    // 这三条连接不能省略，否则 RAM 写入端会拿不到 CPU 的数据。
     assign cpu_a_wdata  = ram_a_wdata;
     assign cpu_bt_wdata = ram_bt_wdata;
     assign cpu_c_wdata  = ram_c_wdata;
@@ -87,7 +97,7 @@ module npu_top(
         .buffer_rdata(buffer_rdata)
     );
 
-    // ---- addr_decoder(对锁存地址组合译码) ----
+    // ---- addr_decoder：对锁存地址进行组合译码 ----
     addr_decoder u_addr_decoder(
         .req_addr(req_addr),
         .sel_ctrl(sel_ctrl), .sel_status(sel_status), .sel_buffer(sel_buffer),
@@ -96,7 +106,7 @@ module npu_top(
         .c_local_addr(c_local_addr), .ctrl_reg_off(ctrl_reg_off)
     );
 
-    // control_regs 的实时配置值(仅供 start_ctrl 在启动瞬间采样)
+    // control_regs 的实时配置值，仅供 start_ctrl 在启动瞬间采样。
     wire [`NPU_DIM_W-1:0]  cr_m, cr_n, cr_k;
     wire [`NPU_TILE_W-1:0] cr_tm, cr_tn;
     wire [`NPU_TK_W-1:0]   cr_tk;
@@ -138,7 +148,7 @@ module npu_top(
         .busy_status(busy_status), .done_status(done_status)
     );
 
-    // 对 npu_ctrl 输出锁存后的任务参数(运行期间软件改动不影响当前任务)
+    // 对 npu_ctrl 输出锁存后的任务参数；运行期间软件改动不影响当前任务。
     assign cfg_m = m_l;  assign cfg_n = n_l;  assign cfg_k = k_l;
     assign cfg_tm = tm_l; assign cfg_tn = tn_l;
     assign cfg_tk = tk_l; assign cfg_qshift = qs_l;

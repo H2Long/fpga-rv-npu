@@ -1,7 +1,12 @@
-// block_addr_gen — 根据当前 tile 下标计算 A/BT 的字基地址与 C 的元素基地址
-// A 字地址  = tile_i*K + tile_k*TK   (一行 tile = TM 行 x 同一 k 打包成 1 个字)
-// BT 字地址 = tile_j*K + tile_k*TK
-// C 元素地址 = tile_i*TM*N + tile_j*TN(行主序)
+`timescale 1ns / 1ps
+// block_addr_gen — 当前 Tile 的三个基地址生成器
+//
+// A/BT Buffer 的地址单位是 32 位字：一个字包含同一 k 的四个 INT8。
+// 因此 A/BT 的 tile 基地址分别由输出行/列 tile 和 K tile 决定：
+//   A  = tile_i * K + tile_k * TK
+//   BT = tile_j * K + tile_k * TK
+// C Buffer 的地址单位是单个 32 位元素，采用行主序：
+//   C  = (tile_i * TM) * N + tile_j * TN
 `include "npu_defines.vh"
 
 module block_addr_gen(
@@ -14,6 +19,7 @@ module block_addr_gen(
     output wire [`NPU_CBASE_W-1:0] c_base
 );
 
+    // 这些表达式是组合地址计算，不在本模块中寄存；FSM 在阶段边界使用稳定地址。
     assign a_base  = (tile_i * lp_k + tile_k * lp_tk);
     assign bt_base = (tile_j * lp_k + tile_k * lp_tk);
     assign c_base  = (tile_i * lp_tm) * lp_n + tile_j * lp_tn;

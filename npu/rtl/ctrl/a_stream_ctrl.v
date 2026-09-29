@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // a_stream_ctrl — A tile 读流控制:根据 A tile 字基地址发起 RAM 读,
 // 处理按 valid_tk 截断的边界(越界 k 不读取)。
 `include "npu_defines.vh"

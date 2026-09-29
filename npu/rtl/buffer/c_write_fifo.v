@@ -1,5 +1,10 @@
-// c_write_fifo — 将 C tile 写回控制与 C RAM 写时序解耦
-// 条目 = {addr[7:0], data[31:0]};每拍向 C RAM 写出一笔,写入完成产生 c_wr_pulse。
+`timescale 1ns / 1ps
+// c_write_fifo — 解耦 C tile 写回控制与 C RAM 写时序
+//
+// FIFO 每个条目为 {C 地址, C 数据}。c_tile_write_ctrl 只负责把结果入队；
+// 本模块在 C RAM 可用且 FIFO 非空时每拍弹出一项。
+// fire 同时驱动 ram_we 和 c_wr_pulse，因此 c_wr_pulse 表示“已经真正写 RAM”，
+// done_ctrl 必须使用它统计完成，不能只统计 FIFO 入队数。
 `include "npu_defines.vh"
 
 module c_write_fifo(
@@ -22,7 +27,9 @@ module c_write_fifo(
 
     wire [39:0] rdata;
     wire        full;
-    wire        fire = !empty && core_busy;
+    wire        fire;
+
+    assign fire = !empty && core_busy;
 
     npu_sync_fifo #(.AW(`NPU_FIFO_AW), .DW(40)) u_fifo(
         .clk(clk), .rst_n(rst_n),

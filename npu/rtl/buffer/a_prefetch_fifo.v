@@ -1,4 +1,6 @@
-// a_prefetch_fifo — 缓存 A RAM 返回数据,吸收同步 RAM 延迟
+`timescale 1ns / 1ps
+// a_prefetch_fifo — 缓存 A RAM 返回数据，吸收同步 RAM 的一拍读延迟。
+// valid 表示队头有数据，pop 由 pair_stream_ctrl 在 A/BT 成对消费时产生。
 `include "npu_defines.vh"
 
 module a_prefetch_fifo(

@@ -1,6 +1,13 @@
+`timescale 1ns / 1ps
 // mmio_if — CPU MMIO 总线入口
-// 锁存一笔 CPU 读写请求;寄存器读/写 1 个等待周期,Buffer 同步读 2 个等待周期;
-// 完成时输出单拍 cpu_ready。
+//
+// 该模块一次只处理一笔请求：
+//   S_IDLE ：看到 cpu_valid 后锁存 cpu_addr/cpu_wdata/cpu_we，并发布 req_valid；
+//   S_WAIT1：等待寄存器写入或寄存器读数据；Buffer 读转入 S_WAIT2；
+//   S_WAIT2：等待同步 RAM 的读数据；
+//   S_RESP ：把读数据送到 cpu_rdata，并用一个周期的 cpu_ready 应答。
+// cpu_ready 表示“本笔访问完成”，不是持续的接收能力；CPU 看到它后应撤销
+// cpu_valid，否则回到 S_IDLE 后可能再次接收同一笔请求。
 `include "npu_defines.vh"
 
 module mmio_if(
@@ -31,9 +38,9 @@ module mmio_if(
 );
 
     localparam S_IDLE  = 2'd0;
-    localparam S_WAIT1 = 2'd1;   // 目标执行写 / RAM 给出读数据
-    localparam S_WAIT2 = 2'd2;   // Buffer 同步读数据寄存
-    localparam S_RESP  = 2'd3;   // 返回 cpu_rdata + cpu_ready
+    localparam S_WAIT1 = 2'd1;   // 目标执行写 / 寄存器组合读数据准备好
+    localparam S_WAIT2 = 2'd2;   // Buffer 同步读：等待 RAM 输出数据
+    localparam S_RESP  = 2'd3;   // 返回 cpu_rdata，并脉冲 cpu_ready
 
     reg [1:0]  state;
     reg [31:0] rdata_q;
@@ -57,6 +64,8 @@ module mmio_if(
             case (state)
                 S_IDLE: begin
                     if (cpu_valid) begin
+                        // req_we 是当前请求的读写属性，会保持到下一笔请求；
+                        // 真正执行写操作还必须同时满足下游的 req_valid=1。
                         req_addr    <= cpu_addr;
                         req_wdata   <= cpu_wdata;
                         req_byte_en <= cpu_byte_en;
