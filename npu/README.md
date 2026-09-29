@@ -6,7 +6,12 @@
 
 ```text
 npu/
-├── rtl/                      NPU Verilog RTL 和 npu_defines.vh
+├── rtl/                      NPU Verilog RTL，按功能平面分组
+│   ├── common/               公共宏定义、RAM、FIFO 和流控制
+│   ├── top/                  系统顶层和 CPU/MMIO 控制
+│   ├── ctrl/                 Tile 调度、阵列时序和 C 写回
+│   ├── buffer/               A/BT/C Buffer 和数据搬运
+│   └── mac/                  INT8 拆包、PE 阵列和结果收集
 ├── tb/tb_npu.v               NPU MMIO 行为测试台
 ├── scripts/                  NPU 仿真和绘图脚本
 ├── docs/NPU_完整设计说明.md   唯一的 NPU 设计说明

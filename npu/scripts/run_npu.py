@@ -32,12 +32,15 @@ def main():
     os.makedirs(WAVE_DIR, exist_ok=True)
 
     files = sorted(
-        os.path.join(RTL, f) for f in os.listdir(RTL) if f.endswith(".v")
+        os.path.join(root, name)
+        for root, _, names in os.walk(RTL)
+        for name in names
+        if name.endswith(".v")
     )
     files.append(os.path.join(TB, "tb_npu.v"))
 
     out = os.path.join(BUILD, "tb_npu.vvp")
-    cmd = [find_iverilog(), "-g2001", "-I", RTL, "-o", out] + files
+    cmd = [find_iverilog(), "-g2001", "-I", os.path.join(RTL, "common"), "-o", out] + files
     print("编译:", " ".join(os.path.basename(c) for c in cmd[4:]))
     r = subprocess.run(
         cmd, cwd=PROJECT, capture_output=True, text=True,

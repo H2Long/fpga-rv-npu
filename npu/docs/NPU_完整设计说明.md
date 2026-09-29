@@ -17,21 +17,19 @@
 
 ```text
 npu/
-├── rtl/                     46 个 Verilog-2001 文件(45 个功能模块 + npu_system 顶层)
-│   ├── npu_defines.vh       全局参数(阵列规模/Buffer 容量/位宽/地址映射/错误码)
-│   ├── npu_system.v        顶层:按接线总表连接四大子系统
-│   ├── npu_top.v           CPU 控制平面(7 模块)
-│   ├── npu_ctrl.v          调度中心(14 模块)
-│   ├── npu_buffer.v        存储平面(8 模块)
-│   ├── npu_mac.v           计算平面(8 模块)
-│   └── …                    其余子模块每文件一个,与设计文档同名
+├── rtl/                     46 个 Verilog-2001 文件，按功能平面分组
+│   ├── common/               公共宏定义、RAM、FIFO 和流控制
+│   ├── top/                  系统顶层和 CPU/MMIO 控制
+│   ├── ctrl/                 Tile 调度、阵列时序和 C 写回
+│   ├── buffer/               A/BT/C Buffer 和数据搬运
+│   └── mac/                  INT8 拆包、PE 阵列和结果收集
 ├── tb/tb_npu.v              测试台(CPU 行为模型 + 7 项自校验测试)
 ├── scripts/                 仿真与绘图脚本
 ├── docs/                    设计说明
 ├── sim/                     编译产物、日志和波形
 │   ├── build/tb_npu.vvp     可由脚本重建的仿真执行文件
 │   ├── logs/                compile.log / npu_sim.log
-│   └── waves/               npu_wave.vcd / npu_wave_reference.vcd
+│   └── waves/               npu_wave.vcd
 └── figures/                 三张 PNG + SVG
 ```
 
