@@ -9,13 +9,10 @@ module npu_stream_ctrl(
     input  wire [`NPU_TK_W-1:0]    len,
     input  wire        go,
     output reg  [`NPU_ABUF_AW-1:0] rd_addr,
-    output reg         rd_re,
-    output wire        issue_done        // len 个读请求已全部发出
+    output reg         rd_re
 );
 
     reg [`NPU_TK_W:0] cnt;
-
-    assign issue_done = go && (cnt == {1'b0, len});
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

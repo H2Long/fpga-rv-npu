@@ -143,7 +143,6 @@ tb_npu.dut.array_start
 tb_npu.dut.array_enable
 tb_npu.dut.array_clear_acc
 tb_npu.dut.array_flush
-tb_npu.dut.array_last
 ```
 
 ### 3.5 PE 和波前
@@ -168,7 +167,6 @@ tb_npu.dut.u_npu_mac.u_tile_result_collector.idx
 tb_npu.dut.u_npu_mac.u_tile_result_collector.c_result_valid
 tb_npu.dut.u_npu_mac.u_tile_result_collector.c_result
 tb_npu.dut.u_npu_mac.u_tile_result_collector.c_scan_index
-tb_npu.dut.u_npu_mac.u_tile_result_collector.c_result_last
 tb_npu.dut.u_npu_mac.u_tile_result_collector.collect_done
 tb_npu.dut.array_done
 ```
@@ -328,7 +326,6 @@ array_flush = 1
 drain_done = 1
 c_result_valid 连续 16 拍
 c_scan_index = 0,1,2,...,15
-c_result_last 在 index=15 同拍有效
 collect_done 延后一拍出现
 array_done 随后出现
 ```
@@ -412,7 +409,7 @@ u_pe00.acc u_pe11.acc u_pe33.acc
 ### `05_result_writeback`
 
 ```text
-drain_done c_result_valid c_result c_scan_index c_result_last
+drain_done c_result_valid c_result c_scan_index
 collect_done array_done cwr_valid cwr_ready cwr_addr cwr_data c_wr_pulse core_done
 ```
 

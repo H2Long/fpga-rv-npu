@@ -1,5 +1,5 @@
 // npu_buffer — 数据存储与搬运平面：A/BT/C RAM、NPU 读端口控制、
-// 预取 FIFO、C 写 FIFO 与 buffer_status。
+// 预取 FIFO 和 C 写 FIFO。
 // RAM 端口归属:core_busy=1 时 A/BT 读端口归 NPU、C 写端口归写 FIFO;
 //               core_busy=0 时全部归 CPU。
 `include "npu_defines.vh"
@@ -97,8 +97,8 @@ module npu_buffer(
 
     npu_read_port_ctrl u_npu_read_port_ctrl(
         .clk(clk), .rst_n(rst_n), .core_busy(core_busy),
-        .a_re(npu_a_re),  .a_rdata_ram(a_ram_rdata),  .a_fifo_push(a_fifo_push),
-        .bt_re(npu_bt_re), .bt_rdata_ram(bt_ram_rdata), .bt_fifo_push(bt_fifo_push)
+        .a_re(npu_a_re),  .a_fifo_push(a_fifo_push),
+        .bt_re(npu_bt_re), .bt_fifo_push(bt_fifo_push)
     );
 
     a_prefetch_fifo u_a_prefetch_fifo(
@@ -123,9 +123,7 @@ module npu_buffer(
         .c_wr_pulse(c_wr_pulse)
     );
 
-    // ---- 状态 ----
-    buffer_status u_buffer_status(
-        .core_busy(core_busy), .buffer_ready(buffer_ready), .access_error()
-    );
+    // Buffer 在 NPU 空闲时可供 CPU 访问，运行期间由 NPU 独占。
+    assign buffer_ready = !core_busy;
 
 endmodule

@@ -15,7 +15,7 @@ module a_stream_ctrl(
     npu_stream_ctrl u_stream(
         .clk(clk), .rst_n(rst_n),
         .base(a_base), .len(valid_tk), .go(prefetch_go),
-        .rd_addr(a_addr), .rd_re(a_re), .issue_done()
+        .rd_addr(a_addr), .rd_re(a_re)
     );
 
 endmodule

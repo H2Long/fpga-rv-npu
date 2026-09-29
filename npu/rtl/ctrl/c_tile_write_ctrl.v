@@ -11,9 +11,8 @@ module c_tile_write_ctrl(
     input  wire [`NPU_CBASE_W-1:0] c_base,    // tile_i*TM*N + tile_j*TN(元素地址)
     input  wire [`NPU_DIM_W-1:0]  n_dim,
     input  wire [`NPU_TILE_W-1:0] valid_tm, valid_tn,
-    // 累加器读端口(c_tile_acc_ctrl)与量化结果(result_quantizer)
+    // 累加器索引与量化结果(result_quantizer)
     output wire [3:0]  acc_rd_idx,
-    input  wire [`NPU_ACC_W-1:0] acc_rd_data,
     input  wire [31:0] quant_word,
     // 到 c_write_fifo
     output wire        cwr_valid,

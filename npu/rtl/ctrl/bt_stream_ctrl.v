@@ -14,7 +14,7 @@ module bt_stream_ctrl(
     npu_stream_ctrl u_stream(
         .clk(clk), .rst_n(rst_n),
         .base(bt_base), .len(valid_tk), .go(prefetch_go),
-        .rd_addr(bt_addr), .rd_re(bt_re), .issue_done()
+        .rd_addr(bt_addr), .rd_re(bt_re)
     );
 
 endmodule

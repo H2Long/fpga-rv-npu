@@ -13,7 +13,6 @@ module npu_mac(
     input  wire        array_enable,
     input  wire        array_clear_acc,
     input  wire        array_flush,
-    input  wire        array_last,
     // A/BT 输入流(来自 npu_ctrl.pair_stream_ctrl)
     input  wire        a_stream_valid,
     input  wire [31:0] a_stream_data,
@@ -25,14 +24,11 @@ module npu_mac(
     output wire        a_stream_ready,
     output wire        bt_stream_ready,
     // 状态(到 npu_ctrl)
-    output wire        array_ready,
-    output wire        array_busy,
     output wire        array_done,
     // C 结果流(到 npu_ctrl.c_tile_acc_ctrl)
     output wire        c_result_valid,
     output wire [`NPU_ACC_W-1:0] c_result,
-    output wire [3:0]  c_result_index,
-    output wire        c_result_last
+    output wire [3:0]  c_result_index
 );
 
     // ---- 输入拆包 ----
@@ -93,7 +89,7 @@ module npu_mac(
         .clk(clk), .rst_n(rst_n),
         .array_start(array_start), .drain_done_i(drain_done), .acc_flat(acc_flat),
         .c_result_valid(c_result_valid), .c_result(c_result),
-        .c_scan_index(scan_index), .c_result_last(c_result_last),
+        .c_scan_index(scan_index),
         .collect_done(collect_done)
     );
 
@@ -104,13 +100,11 @@ module npu_mac(
     // ---- 状态 ----
     mac_status u_mac_status(
         .clk(clk), .rst_n(rst_n),
-        .array_start(array_start), .collect_done(collect_done),
-        .array_busy(array_busy), .array_ready(array_ready), .array_done(array_done),
-        .error_flag()
+        .collect_done(collect_done),
+        .array_done(array_done)
     );
 
     // 当前阵列没有额外的随机反压：feed 和 drain 期间都可以推进。
-    // 输出 ready 仍然保留在接口上，pair_stream_ctrl 用它闭合 valid/ready 关系。
     assign a_stream_ready  = array_enable;
     assign bt_stream_ready = array_enable;
 

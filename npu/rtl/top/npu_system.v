@@ -37,14 +37,13 @@ module npu_system(
     wire [`NPU_ERR_W-1:0]  error_code;
 
     // npu_top 与 npu_buffer 之间的 CPU 端口。
-    // buffer_ready_top 和 buffer_ready_buffer 刻意分开，避免两个模块共同驱动一根线。
+    // 只把 Buffer 实际可用状态送回 npu_top；npu_top 不再导出重复的 ready 信号。
     wire        cpu_a_we, cpu_a_re, cpu_bt_we, cpu_bt_re, cpu_c_we, cpu_c_re;
     wire [`NPU_ABUF_AW-1:0] cpu_a_addr;
     wire [`NPU_BBUF_AW-1:0] cpu_bt_addr;
     wire [`NPU_CBUF_AW-1:0] cpu_c_addr;
     wire [31:0] cpu_a_wdata, cpu_bt_wdata, cpu_c_wdata;
     wire [31:0] a_rdata_cpu, bt_rdata_cpu, c_rdata_cpu;
-    wire        buffer_ready_top;
     wire        buffer_ready_buffer;
 
     // npu_ctrl 发起 A/BT 读请求，npu_buffer 返回同步 RAM 数据和 FIFO 状态。
@@ -57,14 +56,13 @@ module npu_system(
     wire [`NPU_FIFO_AW:0] a_fifo_count, bt_fifo_count;
 
     // npu_ctrl 到 npu_mac 的阵列控制、数据流和结果流。
-    wire        array_start, array_enable, array_clear_acc, array_flush, array_last;
+    wire        array_start, array_enable, array_clear_acc, array_flush;
     wire        a_stream_valid, bt_stream_valid;
     wire [31:0] a_stream_data, bt_stream_data;
     wire [3:0]  a_lane_en, bt_lane_en;
     wire        a_stream_ready, bt_stream_ready;
-    wire        array_ready, array_busy;
     wire        array_done;
-    wire        c_result_valid, c_result_last;
+    wire        c_result_valid;
     wire [31:0] c_result;
     wire [3:0]  c_result_index;
 
@@ -89,7 +87,7 @@ module npu_system(
         .cpu_a_addr(cpu_a_addr), .cpu_bt_addr(cpu_bt_addr), .cpu_c_addr(cpu_c_addr),
         .cpu_a_wdata(cpu_a_wdata), .cpu_bt_wdata(cpu_bt_wdata), .cpu_c_wdata(cpu_c_wdata),
         .a_rdata_cpu(a_rdata_cpu), .bt_rdata_cpu(bt_rdata_cpu), .c_rdata_cpu(c_rdata_cpu),
-        .buffer_ready_i(buffer_ready_buffer), .buffer_ready(buffer_ready_top)
+        .buffer_ready_i(buffer_ready_buffer)
     );
 
     // ============ npu_ctrl ============
@@ -105,14 +103,14 @@ module npu_system(
         .bt_fifo_valid(bt_fifo_valid), .bt_fifo_rdata(bt_fifo_rdata),
         .bt_fifo_count(bt_fifo_count), .bt_fifo_pop(bt_fifo_pop),
         .array_start(array_start), .array_enable(array_enable),
-        .array_clear_acc(array_clear_acc), .array_flush(array_flush), .array_last(array_last),
+        .array_clear_acc(array_clear_acc), .array_flush(array_flush),
         .a_stream_valid(a_stream_valid), .a_stream_data(a_stream_data),
         .bt_stream_valid(bt_stream_valid), .bt_stream_data(bt_stream_data),
         .a_lane_en(a_lane_en), .bt_lane_en(bt_lane_en),
         .a_stream_ready(a_stream_ready), .bt_stream_ready(bt_stream_ready),
         .array_done(array_done),
         .c_result_valid(c_result_valid), .c_result(c_result),
-        .c_result_index(c_result_index), .c_result_last(c_result_last),
+        .c_result_index(c_result_index),
         .cwr_valid(cwr_valid), .cwr_addr(cwr_addr), .cwr_data(cwr_data),
         .cwr_ready(cwr_ready), .cwr_empty(cwr_empty), .c_wr_pulse(c_wr_pulse),
         .core_busy(core_busy), .core_done(core_done), .error_code(error_code)
@@ -143,14 +141,14 @@ module npu_system(
     npu_mac u_npu_mac(
         .clk(clk), .rst_n(rst_n),
         .array_start(array_start), .array_enable(array_enable),
-        .array_clear_acc(array_clear_acc), .array_flush(array_flush), .array_last(array_last),
+        .array_clear_acc(array_clear_acc), .array_flush(array_flush),
         .a_stream_valid(a_stream_valid), .a_stream_data(a_stream_data),
         .bt_stream_valid(bt_stream_valid), .bt_stream_data(bt_stream_data),
         .a_lane_en(a_lane_en), .bt_lane_en(bt_lane_en),
         .a_stream_ready(a_stream_ready), .bt_stream_ready(bt_stream_ready),
-        .array_ready(array_ready), .array_busy(array_busy), .array_done(array_done),
+        .array_done(array_done),
         .c_result_valid(c_result_valid), .c_result(c_result),
-        .c_result_index(c_result_index), .c_result_last(c_result_last)
+        .c_result_index(c_result_index)
     );
 
 endmodule

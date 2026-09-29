@@ -34,8 +34,7 @@ module npu_top(
     output wire [31:0] cpu_a_wdata, cpu_bt_wdata, cpu_c_wdata,
     input  wire [31:0] a_rdata_cpu, bt_rdata_cpu, c_rdata_cpu,
     // 状态
-    input  wire        buffer_ready_i,
-    output wire        buffer_ready
+    input  wire        buffer_ready_i
 );
 
     // ---- 内部连线 ----
@@ -117,8 +116,7 @@ module npu_top(
 
     // ---- status_regs ----
     status_regs u_status_regs(
-        .clk(clk), .rst_n(rst_n),
-        .req_valid(req_valid), .req_we(req_we), .sel_status(sel_status),
+        .req_we(req_we),
         .ctrl_reg_off(ctrl_reg_off),
         .busy_i(busy_status), .done_i(done_status),
         .error_i(error_code != `NPU_ERR_NONE),
@@ -159,8 +157,7 @@ module npu_top(
         .cpu_a_addr(cpu_a_addr), .cpu_bt_addr(cpu_bt_addr), .cpu_c_addr(cpu_c_addr),
         .cpu_buf_wdata(cpu_buf_wdata), .cpu_buf_byte_en(cpu_buf_byte_en),
         .a_rdata_cpu(a_rdata_cpu), .bt_rdata_cpu(bt_rdata_cpu),
-        .c_rdata_cpu(c_rdata_cpu), .buffer_rdata(buffer_rdata),
-        .buffer_ready(buffer_ready)
+        .c_rdata_cpu(c_rdata_cpu), .buffer_rdata(buffer_rdata)
     );
 
     // ---- cpu_port_ctrl ----

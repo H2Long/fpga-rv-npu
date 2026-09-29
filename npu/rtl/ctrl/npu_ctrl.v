@@ -31,7 +31,7 @@ module npu_ctrl(
     output wire        bt_fifo_pop,
     // 到 npu_mac
     output wire        array_start, array_enable, array_clear_acc,
-    output wire        array_flush, array_last,
+    output wire        array_flush,
     output wire        a_stream_valid,
     output wire [31:0] a_stream_data,
     output wire        bt_stream_valid,
@@ -43,7 +43,6 @@ module npu_ctrl(
     input  wire        c_result_valid,
     input  wire [31:0] c_result,
     input  wire [3:0]  c_result_index,
-    input  wire        c_result_last,
     // C 写回(到 npu_buffer.c_write_fifo)
     output wire        cwr_valid,
     output wire [`NPU_CBUF_AW-1:0] cwr_addr,
@@ -170,8 +169,7 @@ module npu_ctrl(
         .ph_array_start(ph_array_start), .feed_go(feed_go), .drain_en(drain_en),
         .feed_last(feed_last),
         .array_start(array_start), .array_enable(array_enable),
-        .array_clear_acc(array_clear_acc), .array_flush(array_flush),
-        .array_last(array_last)
+        .array_clear_acc(array_clear_acc), .array_flush(array_flush)
     );
 
     // ---- C tile 累加 -> 量化 -> 写回 ----
@@ -195,7 +193,7 @@ module npu_ctrl(
         .clk(clk), .rst_n(rst_n),
         .write_go(write_go), .c_base(c_base), .n_dim(lp_n),
         .valid_tm(valid_tm), .valid_tn(valid_tn),
-        .acc_rd_idx(acc_rd_idx), .acc_rd_data(acc_rd_data), .quant_word(quant_word),
+        .acc_rd_idx(acc_rd_idx), .quant_word(quant_word),
         .cwr_valid(cwr_valid), .cwr_addr(cwr_addr), .cwr_data(cwr_data),
         .cwr_ready(cwr_ready), .cwr_empty(cwr_empty), .write_done(write_done)
     );

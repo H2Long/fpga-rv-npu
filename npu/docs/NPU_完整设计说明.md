@@ -1,6 +1,6 @@
 # NPU INT8 矩阵乘法加速器 — RTL 实现说明
 
-本文档对应 `npu/` 目录下的完整 RTL 实现，是当前 NPU 设计、接口、模块职责、时序和验证信息的唯一说明入口。内容以当前 `rtl/`、`tb/` 和 `scripts/` 为准，共覆盖 46 个 RTL 文件。
+本文档对应 `npu/` 目录下的完整 RTL 实现，是当前 NPU 设计、接口、模块职责、时序和验证信息的唯一说明入口。内容以当前 `rtl/`、`tb/` 和 `scripts/` 为准，共覆盖 45 个 RTL 文件。
 
 ## 1. 功能
 
@@ -17,7 +17,7 @@
 
 ```text
 npu/
-├── rtl/                     46 个 Verilog-2001 文件，按功能平面分组
+├── rtl/                     45 个 Verilog-2001 文件，按功能平面分组
 │   ├── common/               公共宏定义、RAM、FIFO 和流控制
 │   ├── top/                  系统顶层和 CPU/MMIO 控制
 │   ├── ctrl/                 Tile 调度、阵列时序和 C 写回
@@ -134,7 +134,7 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 
 ## 10. 全部 RTL 模块清单
 
-当前 `rtl/` 有 46 个 Verilog 文件：1 个系统顶层、45 个功能模块，以及公共宏定义头文件。下面按数据平面列出每个模块的责任。
+当前 `rtl/` 有 45 个 Verilog 文件：1 个系统顶层、44 个功能模块，以及公共宏定义头文件。下面按数据平面列出每个模块的责任。
 
 ### 10.1 系统与 CPU 控制平面
 
@@ -181,7 +181,6 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 | `a_prefetch_fifo` | `a_prefetch_fifo.v` | A 数据预取 FIFO |
 | `bt_prefetch_fifo` | `bt_prefetch_fifo.v` | BT 数据预取 FIFO |
 | `c_write_fifo` | `c_write_fifo.v` | C 写请求 FIFO |
-| `buffer_status` | `buffer_status.v` | Buffer ready/error 汇总 |
 
 ### 10.4 MAC 与脉动阵列平面
 
@@ -241,10 +240,10 @@ C FIFO：cwr_ready, cwr_empty, c_wr_pulse
 ### 11.4 `npu_ctrl <-> npu_mac`
 
 ```text
-阵列控制：array_start, array_enable, array_clear_acc, array_flush, array_last
+阵列控制：array_start, array_enable, array_clear_acc, array_flush
 A/BT 流：a_stream_valid/data, bt_stream_valid/data, a_lane_en, bt_lane_en
 阵列完成：array_done
-C 结果：c_result_valid, c_result[31:0], c_result_index[3:0], c_result_last
+C 结果：c_result_valid, c_result[31:0], c_result_index[3:0]
 ```
 
 ### 11.5 `npu_top <-> npu_buffer`

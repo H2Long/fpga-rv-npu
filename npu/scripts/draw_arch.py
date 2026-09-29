@@ -130,7 +130,6 @@ box(81.5, 25.5, BBW, BH, "a_prefetch_fifo", "吸收 RAM 延迟", C_BUF_BD, fs=7.
 box(81.5, 32.3, BBW, BH, "bt_prefetch_fifo", "吸收 RAM 延迟", C_BUF_BD, fs=7.6)
 box(81.5, 39.1, BBW, BH, "c_write_fifo",    "写回解耦", C_BUF_BD, fs=7.8)
 box(63, 45.9, 17.5, BH, "npu_read_port_ctrl", "同步读→FIFO", C_BUF_BD, fs=7.4)
-box(83, 45.9, BBW, BH, "buffer_status",     "BUFFER_READY", C_BUF_BD, fs=7.8)
 
 # ---------- npu_mac 模块 ----------
 box(6,  61.6, 13.5, BH, "a_input_unpacker",  "32b→4×INT8", C_MAC_BD, fs=8.0)
@@ -219,9 +218,6 @@ wlabel(77.0, 46.3, "cwr_valid / cwr_addr / cwr_data", C_C, fs=6.8)
 # c_write_fifo -> done_ctrl
 wire([(89.2, 41.4), (89.2, 55.6), (30.0, 55.6), (30.0, 56.7)], C_STAT, ls=(0, (3, 2)))
 wlabel(60.0, 56.7, "c_wr_pulse(最后一笔真正写入才 core_done)", C_STAT, fs=6.6)
-# buffer_status -> status_regs
-wire([(90.7, 45.9), (90.7, 21.4), (34.7, 21.4), (34.7, 18.9)], C_STAT, ls=(0, (3, 2)))
-wlabel(64.0, 20.8, "BUFFER_READY", C_STAT, fs=6.4)
 # --- ctrl -> mac 数据 ---
 wire([(43.7, 41.4), (43.7, 56.6), (12.7, 56.6), (12.7, 61.6)], C_A)
 wlabel(26.5, 55.8, "A 数据对(1 字 = 4 行 × 同一 k)", C_A, fs=6.6)
@@ -245,7 +241,7 @@ wire([(86.2, 68.6), (86.2, 53.6), (59.5, 53.6), (59.5, 48.2), (34.0, 48.2)], C_C
 wlabel(73.5, 52.7, "c_result / index / valid / last", C_C, fs=6.8)
 # mac_status -> systolic_fsm
 wire([(86.2, 61.6), (86.2, 59.2), (46.4, 59.2), (46.4, 40.6), (34.0, 40.6)], C_STAT, ls=(0, (3, 2)))
-wlabel(66.5, 58.4, "array_done / array_busy", C_STAT, fs=6.6)
+wlabel(66.5, 58.4, "array_done", C_STAT, fs=6.6)
 # --- 状态回传 ---
 wire([(10.7, 52.0), (10.7, 21.0), (62.1, 21.0), (62.1, 11.0)], C_STAT)
 wlabel(36.5, 20.3, "core_done", C_STAT, fs=7.2)

@@ -8,11 +8,9 @@ module npu_read_port_ctrl(
     input  wire        core_busy,
     // A 通道
     input  wire        a_re,
-    input  wire [31:0] a_rdata_ram,
     output wire        a_fifo_push,
     // BT 通道
     input  wire        bt_re,
-    input  wire [31:0] bt_rdata_ram,
     output wire        bt_fifo_push
 );
 

@@ -11,7 +11,6 @@ module tile_result_collector(
     output reg         c_result_valid,
     output reg  [`NPU_ACC_W-1:0] c_result,
     output reg  [3:0]  c_scan_index,      // 原始扫描下标(行主序)
-    output reg         c_result_last,
     output reg         collect_done       // 单拍,16 个结果已全部送出
 );
 
@@ -19,16 +18,15 @@ module tile_result_collector(
     reg [1:0] state;
     reg [3:0] idx;
 
-    // drain_done 后从 PE[0][0] 到 PE[3][3] 逐拍输出 16 个累加器。
-    // c_result_last 与最后一个结果同拍，collect_done 再延后一拍通知 MAC 状态机。
+    // drain_done 后从 PE[0][0] 到 PE[3][3] 逐拍输出 16 个累加器；
+    // collect_done 在最后一个结果之后单拍通知 MAC 状态机。
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= C_IDLE; idx <= 4'd0;
             c_result_valid <= 1'b0; c_result <= {`NPU_ACC_W{1'b0}};
-            c_scan_index <= 4'd0; c_result_last <= 1'b0; collect_done <= 1'b0;
+            c_scan_index <= 4'd0; collect_done <= 1'b0;
         end else begin
             c_result_valid <= 1'b0;
-            c_result_last  <= 1'b0;
             collect_done   <= 1'b0;
             case (state)
                 C_IDLE: begin
@@ -41,7 +39,6 @@ module tile_result_collector(
                     c_result       <= acc_flat[idx*`NPU_ACC_W +: `NPU_ACC_W];
                     c_scan_index   <= idx;
                     if (idx == 4'd15) begin
-                        c_result_last <= 1'b1;
                         state <= C_PULSE;
                     end
                     idx <= idx + 4'd1;

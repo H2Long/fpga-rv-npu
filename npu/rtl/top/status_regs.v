@@ -4,11 +4,7 @@
 `include "npu_defines.vh"
 
 module status_regs(
-    input  wire                 clk,
-    input  wire                 rst_n,
-    input  wire                 req_valid,
     input  wire                 req_we,
-    input  wire                 sel_status,
     input  wire [2:0]           ctrl_reg_off,   // 复用 addr 低位(0x20->0, 0x24->1)
     input  wire                 busy_i,
     input  wire                 done_i,
@@ -17,8 +13,6 @@ module status_regs(
     input  wire [`NPU_ERR_W-1:0] error_code_i,
     output wire [31:0]          status_rdata
 );
-
-    wire rd = sel_status && !req_we;    // 状态只读;写忽略
 
     assign status_rdata = (ctrl_reg_off == 3'd0) ?
         {28'd0, buffer_ready_i, error_i, done_i, busy_i} :

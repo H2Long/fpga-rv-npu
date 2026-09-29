@@ -33,7 +33,7 @@ module buffer_access_ctrl(
     input  wire [31:0] bt_rdata_cpu,
     input  wire [31:0] c_rdata_cpu,
     output wire [31:0] buffer_rdata,
-    // 到 buffer_status
+    // Buffer 可用状态由 npu_buffer 根据 core_busy 直接输出。
     output wire        buffer_ready
 );
 
