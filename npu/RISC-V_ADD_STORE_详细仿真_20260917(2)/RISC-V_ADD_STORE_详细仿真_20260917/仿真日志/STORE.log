@@ -1,5 +1,0 @@
-VCD info: dumpfile STORE.vcd opened for output.
-STORE: PC=0 inst=0020a623 x1=00800000 x2=12345678 offset=12 expected byte address=0080000c
-STORE SAMPLE t=85000 addr_word=00200003 addr_byte=0080000c data=12345678 be=1111
-PASS STORE: DTCM[3]=12345678, exactly one full-word write, no GPR writes
-D:\docu_data\FPGA\project_risc_v-main\RISC-V_ADD_STORE_详细仿真_20260917\tb_instruction.sv:74: $finish called at 160000 (1ps)
