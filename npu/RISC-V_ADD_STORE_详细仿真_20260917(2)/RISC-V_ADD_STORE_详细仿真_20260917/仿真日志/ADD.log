@@ -1,0 +1,5 @@
+VCD info: dumpfile ADD.vcd opened for output.
+ADD: PC=0 inst=002081b3 x1=00000012 x2=00000023 expected x3=00000035
+ADD WB SAMPLE t=95000 rd=3 data=00000035
+PASS ADD: x3=00000035, exactly one x3 write, no stores
+D:\docu_data\FPGA\project_risc_v-main\RISC-V_ADD_STORE_详细仿真_20260917\tb_instruction.sv:74: $finish called at 160000 (1ps)

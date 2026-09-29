@@ -1,0 +1,17 @@
+{
+  "ADD": {
+    "fetch_ns": 45.0,
+    "predecode_ns": 55.0,
+    "register_read_ns": 65.0,
+    "execute_or_bus_ns": 75.0,
+    "commit_ns": 95.0,
+    "wb_buffer_ns": 85.0
+  },
+  "STORE": {
+    "fetch_ns": 45.0,
+    "predecode_ns": 55.0,
+    "register_read_ns": 65.0,
+    "execute_or_bus_ns": 75.0,
+    "commit_ns": 85.0
+  }
+}

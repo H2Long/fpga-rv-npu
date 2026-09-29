@@ -1,0 +1,620 @@
+<mxfile host="Electron">
+  <diagram name="第 1 页" id="Y7QycU2HVNxhh7QVZffk">
+    <mxGraphModel dx="3910" dy="4257" grid="1" gridSize="10" guides="0" tooltips="1" connect="0" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DCEEFF;strokeColor=#1976D2;strokeWidth=2;" value="mmio_if" vertex="1">
+          <mxGeometry height="90" width="140" x="40" y="-290" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-39" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DCEEFF;strokeColor=#1976D2;strokeWidth=2;" value="addr_decoder" vertex="1">
+          <mxGeometry height="60" width="140" x="45" y="-160" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-40" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DCEEFF;strokeColor=#1976D2;strokeWidth=2;" value="control_regs" vertex="1">
+          <mxGeometry height="70" width="120" x="180" y="-50" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-43" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DCEEFF;strokeColor=#1976D2;strokeWidth=2;" value="status_regs" vertex="1">
+          <mxGeometry height="60" width="140" x="-60" y="-50" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-44" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DCEEFF;strokeColor=#1976D2;strokeWidth=2;" value="start_ctrl" vertex="1">
+          <mxGeometry height="50" width="122.5" x="67.5" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-45" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="tile_param_latch" vertex="1">
+          <mxGeometry height="40" width="170" x="40" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-47" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="tile_scheduler" vertex="1">
+          <mxGeometry height="60" width="180" x="-180" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-48" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=30;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="loop_counters_tile_status" vertex="1">
+          <mxGeometry height="70" width="370" x="-170" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-49" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="block_addr_gen" vertex="1">
+          <mxGeometry height="70" width="165" x="-110" y="570" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-50" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="a_stream_ctrl" vertex="1">
+          <mxGeometry height="70" width="160" x="-160" y="785" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-51" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="bt_stream_ctrl" vertex="1">
+          <mxGeometry height="70" width="165" x="80" y="785" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-52" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="c_tile_acc_ctrl" vertex="1">
+          <mxGeometry height="70" width="160" x="-10" y="1140" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-53" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="done_ctrl" vertex="1">
+          <mxGeometry height="90" width="100" x="250" y="1080" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-54" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=30;fillColor=#E9DDF8;strokeColor=#7B1FA2;strokeWidth=2;" value="pe_array" vertex="1">
+          <mxGeometry height="100" width="220" x="1340" y="680" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-56" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#E9DDF8;strokeColor=#7B1FA2;strokeWidth=2;" value="a_input_unpacker" vertex="1">
+          <mxGeometry height="80" width="210" x="810" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-57" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#E9DDF8;strokeColor=#7B1FA2;strokeWidth=2;" value="bt_input_unpacker" vertex="1">
+          <mxGeometry height="70" width="200" x="820" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-60" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=36;fillColor=#DDF3E4;strokeColor=#2E7D32;strokeWidth=2;" value="a_buffer" vertex="1">
+          <mxGeometry height="170" width="220" x="990" y="-290" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-61" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=36;fillColor=#DDF3E4;strokeColor=#2E7D32;strokeWidth=2;" value="bt_buffer" vertex="1">
+          <mxGeometry height="170" width="220" x="990" y="-20" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-62" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=36;fillColor=#DDF3E4;strokeColor=#2E7D32;strokeWidth=2;" value="c_buffer" vertex="1">
+          <mxGeometry height="170" width="220" x="990" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-64" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DDF3E4;strokeColor=#2E7D32;strokeWidth=2;" value="a_prefetch_fifo" vertex="1">
+          <mxGeometry height="50" width="190" x="730" y="-210" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-65" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DDF3E4;strokeColor=#2E7D32;strokeWidth=2;" value="bt_prefetch_fifo" vertex="1">
+          <mxGeometry height="50" width="180" x="740" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-66" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DDF3E4;strokeColor=#2E7D32;strokeWidth=2;" value="c_write_fifo" vertex="1">
+          <mxGeometry height="70" width="190" x="740" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-67" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=30;fillColor=#DCEEFF;strokeColor=#1976D2;strokeWidth=2;" value="buffer_access_ctrl" vertex="1">
+          <mxGeometry height="90" width="260" x="380" y="-15" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-68" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=30;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="array_ctrl" vertex="1">
+          <mxGeometry height="160" width="165" x="780" y="870" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-69" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#E9DDF8;strokeColor=#7B1FA2;strokeWidth=2;" value="output_reorder" vertex="1">
+          <mxGeometry height="90" width="165" x="1780" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-70" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=30;fillColor=#E9DDF8;strokeColor=#7B1FA2;strokeWidth=2;" value="tile_result_collector" vertex="1">
+          <mxGeometry height="70" width="285" x="1410" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-71" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=30;fillColor=#E9DDF8;strokeColor=#7B1FA2;strokeWidth=2;" value="a_bt_skew_pipeline" vertex="1">
+          <mxGeometry height="110" width="280" x="1030" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-config-checker" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="config_checker" vertex="1">
+          <mxGeometry height="60" width="160" x="150" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-systolic-fsm" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="systolic_fsm" vertex="1">
+          <mxGeometry height="110" width="180" x="270" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-pair-stream-ctrl" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="pair_stream_ctrl" vertex="1">
+          <mxGeometry height="70" width="160" x="600" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-result-quantizer" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="result_quantizer" vertex="1">
+          <mxGeometry height="70" width="160" x="1710" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-c-tile-write-ctrl" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#FFF1CC;strokeColor=#C47F00;strokeWidth=2;" value="c_tile_write_ctrl" vertex="1">
+          <mxGeometry height="70" width="160" x="-30" y="990" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-cpu-port-ctrl" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DCEEFF;strokeColor=#1976D2;strokeWidth=2;" value="cpu_port_ctrl" vertex="1">
+          <mxGeometry height="60" width="230" x="580" y="-420" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-npu-read-port-ctrl" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=30;fillColor=#DDF3E4;strokeColor=#2E7D32;strokeWidth=2;" value="npu_read_port_ctrl" vertex="1">
+          <mxGeometry height="60" width="265" x="560" y="-290" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-buffer-status" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#DDF3E4;strokeColor=#2E7D32;strokeWidth=2;" value="buffer_status" vertex="1">
+          <mxGeometry height="60" width="140" x="220" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-drain-controller" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;direction=south;fillColor=#E9DDF8;strokeColor=#7B1FA2;strokeWidth=2;" value="drain_controller" vertex="1">
+          <mxGeometry height="60" width="210" x="1280" y="980" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-added-mac-status" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=18;fillColor=#E9DDF8;strokeColor=#7B1FA2;strokeWidth=2;" value="mac_status" vertex="1">
+          <mxGeometry height="70" width="140" x="990" y="1040" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-edge-mmio-decoder" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-39">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="80" y="-200" />
+              <mxPoint x="80" y="-200" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-decoder-control" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-40">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="160" y="-30" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-decoder-status" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-43">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="100" y="-30" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-decoder-buffer" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-67">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="-129.97" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-control-start" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-44">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="150" y="10" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-start-tile-latch" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-44" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-45">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="120" y="220" />
+              <mxPoint x="120" y="220" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-start-status" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-44" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-43">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="100" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-latch-config" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="npu-added-config-checker">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="245" y="240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-config-scheduler" edge="1" parent="1" source="npu-added-config-checker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-47">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="80" y="350" />
+              <mxPoint x="80" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-scheduler-counters" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-47" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-48">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-85" y="490" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-fsm-pair" edge="1" parent="1" source="npu-added-systolic-fsm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="npu-added-pair-stream-ctrl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="600" y="615" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-fsm-done" edge="1" parent="1" source="npu-added-systolic-fsm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-53">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="310" y="890" />
+              <mxPoint x="310" y="890" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-a-stream-buffer" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-50" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E88E5;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-67">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-80" y="910" />
+              <mxPoint x="500" y="910" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-bt-stream-buffer" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-51" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#43A047;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-67">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="470" y="820" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-a-fifo-pair" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-64" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E88E5;strokeWidth=2;exitX=0.004;exitY=0.494;exitDx=0;exitDy=0;exitPerimeter=0;" target="npu-added-pair-stream-ctrl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="670" y="-185.33" />
+            </Array>
+            <mxPoint x="720" y="-180" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-bt-fifo-pair" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-65" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#43A047;strokeWidth=2;" target="npu-added-pair-stream-ctrl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="720" y="65.06" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-83" edge="1" parent="1" source="npu-added-config-checker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0.835;entryY=-0.027;entryDx=0;entryDy=0;entryPerimeter=0;" target="npu-added-systolic-fsm">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430.03" y="305" />
+              <mxPoint x="430.03" y="557" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MOCYlfvb3PmUL3SriXRI-84" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0.187;entryY=-0.045;entryDx=0;entryDy=0;entryPerimeter=0;" target="npu-added-systolic-fsm">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="310.03" y="447.48" />
+              <mxPoint x="310.03" y="560.03" />
+              <mxPoint x="303.69" y="560.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-buffer-npu-port" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-67" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="npu-added-npu-read-port-ctrl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="580" y="-120" />
+              <mxPoint x="580" y="-120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-buffer-status" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-67" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="npu-added-buffer-status">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="330" y="-10" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-cpu-port-a" edge="1" parent="1" source="npu-added-cpu-port-ctrl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E88E5;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-60">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1070.03" y="-379.97" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-cpu-port-bt" edge="1" parent="1" source="npu-added-cpu-port-ctrl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#43A047;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-61">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1300.03" y="-409.97" />
+              <mxPoint x="1300.03" y="120.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-cpu-port-c" edge="1" parent="1" source="npu-added-cpu-port-ctrl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-62">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="730.03" y="-459.97" />
+              <mxPoint x="1350.03" y="-459.97" />
+              <mxPoint x="1350.03" y="315" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-npu-port-a" edge="1" parent="1" source="npu-added-npu-read-port-ctrl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E88E5;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-60">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="710" y="-269.97" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-npu-port-bt" edge="1" parent="1" source="npu-added-npu-read-port-ctrl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#43A047;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-61">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="710" y="-340" />
+              <mxPoint x="1250" y="-340" />
+              <mxPoint x="1250" y="65" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-a-buffer-fifo" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-60" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E88E5;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-64">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="960" y="-185" />
+              <mxPoint x="960" y="-185" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-bt-buffer-fifo" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-61" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#43A047;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-65">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="npu-edge-c-fifo-buffer" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-66" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-62">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="970" y="305" />
+              <mxPoint x="970" y="305" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-pair-a-unpack" edge="1" parent="1" source="npu-added-pair-stream-ctrl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E88E5;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-56">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="780" y="620" />
+              <mxPoint x="780" y="520" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-pair-bt-unpack" edge="1" parent="1" source="npu-added-pair-stream-ctrl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#43A047;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-57">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="780" y="635.06" />
+              <mxPoint x="780" y="710" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-a-unpack-skew" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-56" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E88E5;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-71">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1120" y="500.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-bt-unpack-skew" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-57" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#43A047;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-71">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1120.03" y="710.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-skew-array" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-71" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;;strokeColor=#000000;strokeWidth=2" target="MOCYlfvb3PmUL3SriXRI-54">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1400" y="590" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-drain-collector" edge="1" parent="1" source="npu-added-drain-controller" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-70">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1590" y="1020" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-collector-reorder" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-70" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-69">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1760" y="445" />
+              <mxPoint x="1760" y="445" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-mac-status" edge="1" parent="1" source="npu-added-mac-status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="npu-added-systolic-fsm">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="390" y="1085" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-fsm-array-ctrl" edge="1" parent="1" source="npu-added-systolic-fsm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-68">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430" y="950" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-loop-address" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-49">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-70" y="530" />
+              <mxPoint x="-70" y="530" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-address-bt-stream-final" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-49" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#43A047;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-51">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="130" y="590.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-address-c-write-final" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-49" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="npu-added-c-tile-write-ctrl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="20" y="780" />
+              <mxPoint x="20" y="780" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-acc-quantizer-final" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-52" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="npu-added-result-quantizer">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="120" y="1240" />
+              <mxPoint x="1750" y="1240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-quantizer-write-final" edge="1" parent="1" source="npu-added-result-quantizer" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="npu-added-c-tile-write-ctrl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1860" y="1300" />
+              <mxPoint x="200" y="1300" />
+              <mxPoint x="200" y="1050" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-write-cfifo-final" edge="1" parent="1" source="npu-added-c-tile-write-ctrl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-66">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="540" y="1010" />
+              <mxPoint x="540" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-output-acc-final" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-69" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-52">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1930" y="1350" />
+              <mxPoint x="20" y="1350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-buffer-status-regs" edge="1" parent="1" source="npu-added-buffer-status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-43">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="50" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-done-start-final" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-53" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-44">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-270" y="1120" />
+              <mxPoint x="-270" y="135" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-done-status-final" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-53" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-43">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="290" y="1280" />
+              <mxPoint x="-310" y="1280" />
+              <mxPoint x="-310" y="5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-status-mmio" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-43" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="20" y="-229.97" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-buffer-mmio" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-67" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;;strokeColor=#757575;strokeWidth=2" target="MOCYlfvb3PmUL3SriXRI-1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="520" y="-239.97" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-param-scheduler" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-47">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-140" y="260" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-param-address" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-49">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-220" y="230" />
+              <mxPoint x="-220" y="605" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-address-a-stream" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-49" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E88E5;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-50">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="-70" y="760" />
+              <mxPoint x="-70" y="760" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-fsm-a-stream" edge="1" parent="1" source="npu-added-systolic-fsm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-50">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="340" y="730" />
+              <mxPoint x="-120" y="730" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-fsm-bt-stream" edge="1" parent="1" source="npu-added-systolic-fsm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-51">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-fsm-c-acc" edge="1" parent="1" source="npu-added-systolic-fsm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-52">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="520" />
+              <mxPoint x="-190" y="520" />
+              <mxPoint x="-190" y="1175" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-fsm-c-write" edge="1" parent="1" source="npu-added-systolic-fsm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="npu-added-c-tile-write-ctrl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="70" y="620" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-fsm-start-busy" edge="1" parent="1" source="npu-added-systolic-fsm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-44">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="340.03" y="150.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-fsm-buffer-busy" edge="1" parent="1" source="npu-added-systolic-fsm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-67">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380.03" y="317.48" />
+              <mxPoint x="400.03" y="317.48" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-pe-collector-data" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-54" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FB8C00;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-70">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1660" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-c-fifo-done" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-66" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-53">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="580" y="330" />
+              <mxPoint x="580" y="1125.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-config-error-status" edge="1" parent="1" source="npu-added-config-checker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-43">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="20" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-mac-error-status" edge="1" parent="1" source="npu-added-mac-status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-43">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1780" y="1080" />
+              <mxPoint x="1780" y="1400" />
+              <mxPoint x="-350" y="1400" />
+              <mxPoint x="-350" y="-40" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-control-mmio-read" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#757575;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="237.49" y="-199.97" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-array-ctrl-skew-essential" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-68" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-71">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1190.03" y="890.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-array-ctrl-pe-essential" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-68" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="MOCYlfvb3PmUL3SriXRI-54">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1400" y="940" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="npu-edge-array-ctrl-drain-essential" edge="1" parent="1" source="MOCYlfvb3PmUL3SriXRI-68" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#E53935;strokeWidth=2;" target="npu-added-drain-controller">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="1010" />
+              <mxPoint x="1100" y="1010" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
