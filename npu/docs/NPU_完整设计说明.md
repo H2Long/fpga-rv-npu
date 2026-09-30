@@ -106,6 +106,7 @@ T10_TK为零错误       PASS : DONE+ERROR, ERR_CODE=4
 ```powershell
 # 依赖:Python3 + Icarus Verilog(如 C:\msys64\mingw64\bin\iverilog.exe)
 python scripts/run_npu.py               # 编译 + 仿真,日志在 sim/logs/
+python scripts/run_npu.py --simple      # 只运行 T1 4x4x4 单 Tile
 python scripts/draw_arch.py             # 架构图,输出到 figures/
 python scripts/draw_wavefront.py        # 脉动阵列波前图,输出到 figures/
 python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真生成 sim/waves/npu_wave.vcd)
@@ -327,6 +328,7 @@ python3 scripts/draw_wave.py
 ```
 
 图片写入 `figures/`。`sim/build/`、`sim/logs/compile.log` 和 `sim/waves/npu_wave.vcd` 都可以删除后重新生成。
+简单模式会额外保留 `sim/waves/npu_wave_simple.vcd`，便于只观察一次单 Tile 数据流。
 
 ## 17. 已知集成边界
 

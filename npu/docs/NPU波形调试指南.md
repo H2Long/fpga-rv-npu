@@ -11,6 +11,14 @@ cd npu
 python3 scripts/run_npu.py
 ```
 
+只观察一次最简单的 `4x4x4` 单 Tile 运算时运行：
+
+```bash
+python3 scripts/run_npu.py --simple
+```
+
+该模式生成 `sim/waves/npu_wave_simple.vcd`，适合从 `start_pulse` 一直看到 `core_done`。
+
 波形文件为：
 
 ```text
