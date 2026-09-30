@@ -7,11 +7,11 @@
 `include "npu_defines.vh"
 
 module drain_controller(
-    input  wire clk,
-    input  wire rst_n,
-    input  wire array_start,     // 新 tile 复位排空计数
-    input  wire array_flush,     // 排空阶段电平
-    input  wire array_enable,    // 使能拍才计数(暂停会冻结波前)
+    input clk,
+    input rst,
+    input array_start,     // 新 tile 复位排空计数
+    input array_flush,     // 排空阶段电平
+    input array_enable,    // 使能拍才计数(暂停会冻结波前)
     output reg  drain_done
 );
 
@@ -19,8 +19,8 @@ module drain_controller(
 
     reg [2:0] cnt;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(posedge clk) begin
+        if (rst) begin
             cnt <= 3'd0; drain_done <= 1'b0;
         end else if (array_start) begin
             cnt <= 3'd0; drain_done <= 1'b0;

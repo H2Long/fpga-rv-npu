@@ -8,32 +8,34 @@
 `include "npu_defines.vh"
 
 module start_ctrl(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        start_req,
-    input  wire        clear_done_req,
-    input  wire [`NPU_DIM_W-1:0]  cfg_m, cfg_n, cfg_k,
-    input  wire [`NPU_TILE_W-1:0] cfg_tm, cfg_tn,
-    input  wire [`NPU_TK_W-1:0]   cfg_tk,
-    input  wire [`NPU_QS_W-1:0]   cfg_qshift,
-    input  wire        core_done_i,
+    input        clk,
+    input        rst,
+    input        start_req,
+    input        clear_done_req,
+    input [`NPU_DIM_W-1:0]  cfg_m, cfg_n, cfg_k,
+    input [`NPU_TILE_W-1:0] cfg_tm, cfg_tn,
+    input [`NPU_TK_W-1:0]   cfg_tk,
+    input [`NPU_QS_W-1:0]   cfg_qshift,
+    input        core_done_i,
     output reg         start_pulse,
     output reg  [`NPU_DIM_W-1:0]  m_l, n_l, k_l,
     output reg  [`NPU_TILE_W-1:0] tm_l, tn_l,
     output reg  [`NPU_TK_W-1:0]   tk_l,
     output reg  [`NPU_QS_W-1:0]   qs_l,
-    output wire        busy_status,
-    output wire        done_status
+    output reg        busy_status,
+    output reg        done_status
 );
 
     localparam ST_IDLE = 2'd0, ST_RUN = 2'd1, ST_DONE = 2'd2;
     reg [1:0] state;
 
-    assign busy_status = (state == ST_RUN);
-    assign done_status = (state == ST_DONE);
+    always @(*) begin
+        busy_status = (state == ST_RUN);
+        done_status = (state == ST_DONE);
+    end
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(posedge clk) begin
+        if (rst) begin
             state <= ST_IDLE; start_pulse <= 1'b0;
             m_l <= 6'd0; n_l <= 6'd0; k_l <= 6'd0;
             tm_l <= 3'd0; tn_l <= 3'd0; tk_l <= 5'd0; qs_l <= 5'd0;

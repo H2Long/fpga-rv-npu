@@ -10,11 +10,11 @@
 `include "npu_defines.vh"
 
 module config_checker(
-    input  wire [`NPU_DIM_W-1:0]  lp_m, lp_n, lp_k,
-    input  wire [`NPU_TILE_W-1:0] lp_tm, lp_tn,
-    input  wire [`NPU_TK_W-1:0]   lp_tk,
-    output wire        cfg_ok,
-    output wire [`NPU_ERR_W-1:0]  err_code
+    input [`NPU_DIM_W-1:0]  lp_m, lp_n, lp_k,
+    input [`NPU_TILE_W-1:0] lp_tm, lp_tn,
+    input [`NPU_TK_W-1:0]   lp_tk,
+    output reg        cfg_ok,
+    output reg [`NPU_ERR_W-1:0]  err_code
 );
 
     // A/BT Buffer 字数 = ceil(M/TM) * K。
@@ -53,7 +53,9 @@ module config_checker(
         end
     end
 
-    assign cfg_ok   = cfg_ok_r;
-    assign err_code = err_code_r;
+    always @(*) begin
+        cfg_ok   = cfg_ok_r;
+        err_code = err_code_r;
+    end
 
 endmodule

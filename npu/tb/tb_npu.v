@@ -17,7 +17,7 @@
 module tb_npu;
 
     reg clk;
-    reg rst_n;
+    reg rst;
     reg        cpu_valid;
     reg        cpu_we;
     reg [31:0] cpu_addr;
@@ -29,7 +29,7 @@ module tb_npu;
     integer t_start, t_end;
 
     npu_system dut(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .cpu_addr(cpu_addr), .cpu_wdata(cpu_wdata), .cpu_byte_en(4'hF),
         .cpu_we(cpu_we), .cpu_valid(cpu_valid),
         .cpu_rdata(cpu_rdata), .cpu_ready(cpu_ready)
@@ -75,7 +75,7 @@ module tb_npu;
 
     initial begin
         clk = 1'b0;
-        rst_n = 1'b0;
+        rst = 1'b1;
         cpu_valid = 1'b0;
         cpu_we = 1'b0;
         cpu_addr = 32'd0;
@@ -238,7 +238,7 @@ module tb_npu;
     initial begin
         num_pass = 0; num_fail = 0; cycle_cnt = 0;
         repeat (5) @(negedge clk);
-        rst_n = 1;
+        rst = 1'b0;
         repeat (2) @(negedge clk);
 
         $display("==== NPU INT8 GEMM 仿真开始 ====");

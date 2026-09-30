@@ -4,18 +4,28 @@
 `include "npu_defines.vh"
 
 module a_prefetch_fifo(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        push,
-    input  wire [31:0] wdata,
-    input  wire        pop,
-    output wire [31:0] rdata,
-    output wire        valid,
-    output wire [`NPU_FIFO_AW:0] count
+    input        clk,
+    input        rst,
+    input        push,
+    input [31:0] wdata,
+    input        pop,
+    output reg [31:0] rdata,
+    output reg        valid,
+    output reg [`NPU_FIFO_AW:0] count
 );
+    wire [31:0] rdata_w;
+    wire        valid_w;
+    wire [`NPU_FIFO_AW:0] count_w;
+
     npu_sync_fifo #(.AW(`NPU_FIFO_AW), .DW(32)) u_fifo(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .push(push), .wdata(wdata), .pop(pop),
-        .rdata(rdata), .valid(valid), .count(count)
+        .rdata(rdata_w), .valid(valid_w), .count(count_w)
     );
+
+    always @(*) begin
+        rdata = rdata_w;
+        valid = valid_w;
+        count = count_w;
+    end
 endmodule

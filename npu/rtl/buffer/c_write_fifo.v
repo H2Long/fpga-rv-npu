@@ -8,39 +8,42 @@
 `include "npu_defines.vh"
 
 module c_write_fifo(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        core_busy,
+    input        clk,
+    input        rst,
+    input        core_busy,
     // 来自 c_tile_write_ctrl
-    input  wire        push,
-    input  wire [`NPU_CBUF_AW-1:0] waddr,
-    input  wire [31:0] wdata,
-    output wire        ready,          // !full
-    output wire        empty,
+    input        push,
+    input [`NPU_CBUF_AW-1:0] waddr,
+    input [31:0] wdata,
+    output reg        ready,          // !full
+    output reg        empty,
     // 到 c_buffer RAM
-    output wire        ram_we,
-    output wire [`NPU_CBUF_AW-1:0] ram_addr,
-    output wire [31:0] ram_wdata,
+    output reg        ram_we,
+    output reg [`NPU_CBUF_AW-1:0] ram_addr,
+    output reg [31:0] ram_wdata,
     // 到 done_ctrl:真正写入 C RAM 的脉冲
-    output wire        c_wr_pulse
+    output reg        c_wr_pulse
 );
 
     wire [39:0] rdata;
     wire        full;
-    wire        fire;
-
-    assign fire = !empty && core_busy;
+    wire        empty_w;
+    reg         fire;
 
     npu_sync_fifo #(.AW(`NPU_FIFO_AW), .DW(40)) u_fifo(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .push(push && !full), .wdata({waddr, wdata}), .pop(fire),
-        .rdata(rdata), .valid(), .empty(empty), .full(full), .count()
+        .rdata(rdata), .valid(), .empty(empty_w), .full(full), .count()
     );
 
-    assign ready      = !full;
-    assign ram_we     = fire;
-    assign ram_addr   = rdata[39:32];
-    assign ram_wdata  = rdata[31:0];
-    assign c_wr_pulse = fire;
+    always @(*) begin
+        fire       = !empty_w && core_busy;
+        ready      = !full;
+        empty      = empty_w;
+        ram_we     = fire;
+        ram_addr   = rdata[39:32];
+        ram_wdata  = rdata[31:0];
+        c_wr_pulse = fire;
+    end
 
 endmodule

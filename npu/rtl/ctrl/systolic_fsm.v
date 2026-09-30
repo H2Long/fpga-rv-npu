@@ -13,25 +13,25 @@
 `include "npu_defines.vh"
 
 module systolic_fsm(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        start_pulse,
-    input  wire        cfg_ok,
-    input  wire [`NPU_ERR_W-1:0] chk_err_code,
-    input  wire        core_done,          // done_ctrl 已发出 core_done
+    input        clk,
+    input        rst,
+    input        start_pulse,
+    input        cfg_ok,
+    input [`NPU_ERR_W-1:0] chk_err_code,
+    input        core_done,          // done_ctrl 已发出 core_done
     // 边界/调度状态(loop_counters_tile_status)
-    input  wire        first_k_tile,
-    input  wire        last_k_tile,
-    input  wire        last_output_tile,
-    input  wire [`NPU_TK_W-1:0] valid_tk,
+    input        first_k_tile,
+    input        last_k_tile,
+    input        last_output_tile,
+    input [`NPU_TK_W-1:0] valid_tk,
     // 预取状态(npu_buffer FIFO 计数)
-    input  wire [`NPU_FIFO_AW:0] a_fifo_count, bt_fifo_count,
+    input [`NPU_FIFO_AW:0] a_fifo_count, bt_fifo_count,
     // 喂数节拍(pair_stream_ctrl)
-    input  wire        pair_fire,
+    input        pair_fire,
     // MAC 状态(mac_status)
-    input  wire        array_done,
+    input        array_done,
     // C 写回状态(c_tile_write_ctrl)
-    input  wire        write_done,
+    input        write_done,
     // 输出
     output reg         sched_init,
     output reg         next_k_req,
@@ -43,10 +43,10 @@ module systolic_fsm(
     output reg         drain_en,
     output reg         write_go,
     output reg         feed_last,          // 最后一对 A/BT 正在送入
-    output wire        fsm_done,
+    output reg        fsm_done,
     output reg         err_abort,
     output reg  [`NPU_ERR_W-1:0] error_code,
-    output wire        core_busy
+    output reg        core_busy
 );
 
     localparam S_IDLE            = 4'd0;
@@ -67,8 +67,10 @@ module systolic_fsm(
     reg [5:0]  feed_cnt;      // 已送入的 A/BT 数据对数
 
     // 只要离开 IDLE，Buffer 端口和任务状态就属于 NPU。
-    assign core_busy = (state != S_IDLE);
-    assign fsm_done  = (state == S_DONE);
+    always @(*) begin
+        core_busy = (state != S_IDLE);
+        fsm_done  = (state == S_DONE);
+    end
 
     // 预取完成条件：两个 FIFO 都已经拥有当前 K tile 的全部输入字。
     // stream_ctrl 在 go 期间只发 valid_tk 个请求，因此 count 不会跨 Tile 无限增长。
@@ -76,8 +78,8 @@ module systolic_fsm(
                          (bt_fifo_count >= {1'b0, valid_tk});
     wire feed_beat_done = pair_fire && (feed_cnt + 6'd1 >= {1'b0, valid_tk});
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(posedge clk) begin
+        if (rst) begin
             state <= S_IDLE;
             sched_init <= 1'b0; next_k_req <= 1'b0; next_out_req <= 1'b0;
             acc_tile_clear <= 1'b0; prefetch_go <= 1'b0;

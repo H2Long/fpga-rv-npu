@@ -9,29 +9,29 @@
 `include "npu_defines.vh"
 
 module npu_mac(
-    input  wire        clk,
-    input  wire        rst_n,
+    input        clk,
+    input        rst,
     // 阵列控制(来自 npu_ctrl.array_ctrl)
-    input  wire        array_start,
-    input  wire        array_enable,
-    input  wire        array_clear_acc,
-    input  wire        array_flush,
+    input        array_start,
+    input        array_enable,
+    input        array_clear_acc,
+    input        array_flush,
     // A/BT 输入流(来自 npu_ctrl.pair_stream_ctrl)
-    input  wire        a_stream_valid,
-    input  wire [31:0] a_stream_data,
-    input  wire        bt_stream_valid,
-    input  wire [31:0] bt_stream_data,
-    input  wire [3:0]  a_lane_en,
-    input  wire [3:0]  bt_lane_en,
+    input        a_stream_valid,
+    input [31:0] a_stream_data,
+    input        bt_stream_valid,
+    input [31:0] bt_stream_data,
+    input [3:0]  a_lane_en,
+    input [3:0]  bt_lane_en,
     // 流握手
-    output wire        a_stream_ready,
-    output wire        bt_stream_ready,
+    output reg        a_stream_ready,
+    output reg        bt_stream_ready,
     // 状态(到 npu_ctrl)
-    output wire        array_done,
+    output reg        array_done,
     // C 结果流(到 npu_ctrl.c_tile_acc_ctrl)
-    output wire        c_result_valid,
-    output wire [`NPU_ACC_W-1:0] c_result,
-    output wire [3:0]  c_result_index
+    output reg        c_result_valid,
+    output reg [`NPU_ACC_W-1:0] c_result,
+    output reg [3:0]  c_result_index
 );
 
     // ---- 输入拆包：一个 32 位字 -> 四个 INT8 lane ----
@@ -59,7 +59,7 @@ module npu_mac(
     wire       bt_sk_v0, bt_sk_v1, bt_sk_v2, bt_sk_v3;
 
     a_bt_skew_pipeline u_skew(
-        .clk(clk), .rst_n(rst_n), .enable(array_enable),
+        .clk(clk), .rst(rst), .enable(array_enable),
         .a_in0(a_l0), .a_in1(a_l1), .a_in2(a_l2), .a_in3(a_l3), .a_in_v(a_lv),
         .bt_in0(b_l0), .bt_in1(b_l1), .bt_in2(b_l2), .bt_in3(b_l3), .bt_in_v(b_lv),
         .a_sk0(a_sk0), .a_sk1(a_sk1), .a_sk2(a_sk2), .a_sk3(a_sk3),
@@ -72,7 +72,7 @@ module npu_mac(
     wire [16*`NPU_ACC_W-1:0] acc_flat;
 
     pe_array u_pe_array(
-        .clk(clk), .rst_n(rst_n), .enable(array_enable), .clear_acc(array_clear_acc),
+        .clk(clk), .rst(rst), .enable(array_enable), .clear_acc(array_clear_acc),
         .a_lanes({a_sk3, a_sk2, a_sk1, a_sk0}),
         .a_lane_v({a_sk_v3, a_sk_v2, a_sk_v1, a_sk_v0}),
         .bt_lanes({bt_sk3, bt_sk2, bt_sk1, bt_sk0}),
@@ -83,9 +83,13 @@ module npu_mac(
     // ---- 排空与收集 ----
     // drain_done 只代表波前已经传播到最远端，collector 还要再串行输出 16 个结果。
     wire drain_done, collect_done;
+    wire c_result_valid_w;
+    wire [`NPU_ACC_W-1:0] c_result_w;
+    wire [3:0] c_result_index_w;
+    wire array_done_w;
 
     drain_controller u_drain_controller(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .array_start(array_start), .array_flush(array_flush), .array_enable(array_enable),
         .drain_done(drain_done)
     );
@@ -93,27 +97,33 @@ module npu_mac(
     wire [3:0] scan_index;
 
     tile_result_collector u_tile_result_collector(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .array_start(array_start), .drain_done_i(drain_done), .acc_flat(acc_flat),
-        .c_result_valid(c_result_valid), .c_result(c_result),
+        .c_result_valid(c_result_valid_w), .c_result(c_result_w),
         .c_scan_index(scan_index),
         .collect_done(collect_done)
     );
 
     output_reorder u_output_reorder(
-        .scan_index(scan_index), .c_result_index(c_result_index)
+        .scan_index(scan_index), .c_result_index(c_result_index_w)
     );
 
     // ---- 状态 ----
     mac_status u_mac_status(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .collect_done(collect_done),
-        .array_done(array_done)
+        .array_done(array_done_w)
     );
 
     // 当前阵列没有额外的随机反压：feed 和 drain 期间都可以推进。
     // ready 与 array_enable 同源，pair_stream_ctrl 用它保证只有阵列推进时才 pop FIFO。
-    assign a_stream_ready  = array_enable;
-    assign bt_stream_ready = array_enable;
+    always @(*) begin
+        a_stream_ready  = array_enable;
+        bt_stream_ready = array_enable;
+        c_result_valid  = c_result_valid_w;
+        c_result        = c_result_w;
+        c_result_index  = c_result_index_w;
+        array_done      = array_done_w;
+    end
 
 endmodule

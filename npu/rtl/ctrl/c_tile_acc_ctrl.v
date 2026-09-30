@@ -7,23 +7,23 @@
 `include "npu_defines.vh"
 
 module c_tile_acc_ctrl(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        acc_tile_clear,     // 换输出 tile 时清零(保险)
-    input  wire        load_mode,          // first_k_tile: 装入而非累加
-    input  wire        c_result_valid,
-    input  wire [3:0]  c_result_index,
-    input  wire [`NPU_ACC_W-1:0] c_result,
-    input  wire [3:0]  acc_rd_idx,
-    output wire [`NPU_ACC_W-1:0] acc_rd_data
+    input        clk,
+    input        rst,
+    input        acc_tile_clear,     // 换输出 tile 时清零(保险)
+    input        load_mode,          // first_k_tile: 装入而非累加
+    input        c_result_valid,
+    input [3:0]  c_result_index,
+    input [`NPU_ACC_W-1:0] c_result,
+    input [3:0]  acc_rd_idx,
+    output reg [`NPU_ACC_W-1:0] acc_rd_data
 );
 
     reg [`NPU_ACC_W-1:0] acc [0:15];
 
     integer i;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(posedge clk) begin
+        if (rst) begin
             for (i = 0; i < 16; i = i + 1) acc[i] <= {`NPU_ACC_W{1'b0}};
         end else if (acc_tile_clear) begin
             for (i = 0; i < 16; i = i + 1) acc[i] <= {`NPU_ACC_W{1'b0}};
@@ -36,6 +36,8 @@ module c_tile_acc_ctrl(
         end
     end
 
-    assign acc_rd_data = acc[acc_rd_idx];
+    always @(*) begin
+        acc_rd_data = acc[acc_rd_idx];
+    end
 
 endmodule

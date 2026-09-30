@@ -6,8 +6,8 @@
 `include "npu_defines.vh"
 
 module result_quantizer(
-    input  wire [`NPU_ACC_W-1:0] acc_data,    // 解释为有符号
-    input  wire [`NPU_QS_W-1:0]  qshift,
+    input [`NPU_ACC_W-1:0] acc_data,    // 解释为有符号
+    input [`NPU_QS_W-1:0]  qshift,
     output reg  [31:0] c_word
 );
 

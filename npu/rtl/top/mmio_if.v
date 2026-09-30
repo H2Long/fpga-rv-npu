@@ -11,14 +11,14 @@
 `include "npu_defines.vh"
 
 module mmio_if(
-    input  wire        clk,
-    input  wire        rst_n,
+    input        clk,
+    input        rst,
     // CPU 侧
-    input  wire        cpu_valid,
-    input  wire        cpu_we,
-    input  wire [31:0] cpu_addr,
-    input  wire [31:0] cpu_wdata,
-    input  wire [3:0]  cpu_byte_en,
+    input        cpu_valid,
+    input        cpu_we,
+    input [31:0] cpu_addr,
+    input [31:0] cpu_wdata,
+    input [3:0]  cpu_byte_en,
     output reg         cpu_ready,
     output reg  [31:0] cpu_rdata,
     // 内部锁存请求(送 addr_decoder / 目标模块)
@@ -28,13 +28,13 @@ module mmio_if(
     output reg         req_we,
     output reg         req_valid,     // 锁存后单拍有效
     // 对 req_addr 的组合译码结果(addr_decoder 提供)
-    input  wire        sel_ctrl,
-    input  wire        sel_status,
-    input  wire        sel_buffer,
+    input        sel_ctrl,
+    input        sel_status,
+    input        sel_buffer,
     // 三类读数据源
-    input  wire [31:0] control_rdata,
-    input  wire [31:0] status_rdata,
-    input  wire [31:0] buffer_rdata
+    input [31:0] control_rdata,
+    input [31:0] status_rdata,
+    input [31:0] buffer_rdata
 );
 
     localparam S_IDLE  = 2'd0;
@@ -47,8 +47,8 @@ module mmio_if(
 
     // 请求生命周期：IDLE 接收请求，WAIT1 等待寄存器/写操作完成，
     // WAIT2 等待同步 Buffer RAM 返回，RESP 输出一个周期的 ready。
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(posedge clk) begin
+        if (rst) begin
             state        <= S_IDLE;
             cpu_ready    <= 1'b0;
             cpu_rdata    <= 32'd0;

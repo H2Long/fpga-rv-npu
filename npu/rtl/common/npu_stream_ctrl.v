@@ -8,11 +8,11 @@
 `include "npu_defines.vh"
 
 module npu_stream_ctrl(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire [`NPU_ABUF_AW-1:0] base,
-    input  wire [`NPU_TK_W-1:0]    len,
-    input  wire        go,
+    input        clk,
+    input        rst,
+    input [`NPU_ABUF_AW-1:0] base,
+    input [`NPU_TK_W-1:0]    len,
+    input        go,
     output reg  [`NPU_ABUF_AW-1:0] rd_addr,
     output reg         rd_re
 );
@@ -20,8 +20,8 @@ module npu_stream_ctrl(
     // 比 len 多一位，允许比较到“已经发完”的状态。
     reg [`NPU_TK_W:0] cnt;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(posedge clk) begin
+        if (rst) begin
             cnt     <= {(`NPU_TK_W + 1){1'b0}};
             rd_addr <= {`NPU_ABUF_AW{1'b0}};
             rd_re   <= 1'b0;

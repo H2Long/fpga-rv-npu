@@ -11,32 +11,34 @@
 `include "npu_defines.vh"
 
 module addr_decoder(
-    input  wire [31:0] req_addr,
-    output wire        sel_ctrl,
-    output wire        sel_status,
-    output wire        sel_buffer,
-    output wire        sel_a_buf,
-    output wire        sel_bt_buf,
-    output wire        sel_c_buf,
-    output wire [`NPU_ABUF_AW-1:0] a_local_addr,   // (addr - 0x1000)>>2
-    output wire [`NPU_BBUF_AW-1:0] bt_local_addr,  // (addr - 0x2000)>>2
-    output wire [`NPU_CBUF_AW-1:0] c_local_addr,   // (addr - 0x3000)>>2
-    output wire [2:0]  ctrl_reg_off                 // 寄存器内偏移 addr[4:2]
+    input [31:0] req_addr,
+    output reg        sel_ctrl,
+    output reg        sel_status,
+    output reg        sel_buffer,
+    output reg        sel_a_buf,
+    output reg        sel_bt_buf,
+    output reg        sel_c_buf,
+    output reg [`NPU_ABUF_AW-1:0] a_local_addr,   // (addr - 0x1000)>>2
+    output reg [`NPU_BBUF_AW-1:0] bt_local_addr,  // (addr - 0x2000)>>2
+    output reg [`NPU_CBUF_AW-1:0] c_local_addr,   // (addr - 0x3000)>>2
+    output reg [2:0]  ctrl_reg_off                 // 寄存器内偏移 addr[4:2]
 );
 
-    // 控制/状态寄存器按 32 字节窗口译码；低两位地址应保持字对齐。
-    assign sel_ctrl   = (req_addr[31:5] == 27'd0);
-    assign sel_status = (req_addr[31:5] == 27'd1);
-    assign sel_a_buf  = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h1);
-    assign sel_bt_buf = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h2);
-    assign sel_c_buf  = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h3);
-    assign sel_buffer = sel_a_buf | sel_bt_buf | sel_c_buf;
+    always @(*) begin
+        // 控制/状态寄存器按 32 字节窗口译码；低两位地址应保持字对齐。
+        sel_ctrl   = (req_addr[31:5] == 27'd0);
+        sel_status = (req_addr[31:5] == 27'd1);
+        sel_a_buf  = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h1);
+        sel_bt_buf = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h2);
+        sel_c_buf  = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h3);
+        sel_buffer = sel_a_buf | sel_bt_buf | sel_c_buf;
 
-    // A/BT 每块有 64 个 32 位字，因此使用地址 [7:2]。
-    assign a_local_addr  = req_addr[7:2];
-    assign bt_local_addr = req_addr[7:2];
-    // C Buffer 有 256 个 32 位字，因此使用地址 [9:2]。
-    assign c_local_addr  = req_addr[9:2];
-    assign ctrl_reg_off  = req_addr[4:2];
+        // A/BT 每块有 64 个 32 位字，因此使用地址 [7:2]。
+        a_local_addr  = req_addr[7:2];
+        bt_local_addr = req_addr[7:2];
+        // C Buffer 有 256 个 32 位字，因此使用地址 [9:2]。
+        c_local_addr  = req_addr[9:2];
+        ctrl_reg_off  = req_addr[4:2];
+    end
 
 endmodule

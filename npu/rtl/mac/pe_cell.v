@@ -9,14 +9,14 @@
 `include "npu_defines.vh"
 
 module pe_cell(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        enable,
-    input  wire        clear_acc,
-    input  wire [7:0]  a_in,
-    input  wire        a_v_in,
-    input  wire [7:0]  bt_in,
-    input  wire        bt_v_in,
+    input        clk,
+    input        rst,
+    input        enable,
+    input        clear_acc,
+    input [7:0]  a_in,
+    input        a_v_in,
+    input [7:0]  bt_in,
+    input        bt_v_in,
     output reg  [7:0]  a_out,
     output reg         a_v_out,
     output reg  [7:0]  bt_out,
@@ -24,13 +24,15 @@ module pe_cell(
     output reg  [`NPU_ACC_W-1:0] acc
 );
 
-    wire signed [`NPU_ACC_W-1:0] prod_ext;
+    reg signed [`NPU_ACC_W-1:0] prod_ext;
 
     // 显式按有符号 INT8 相乘，再扩展到累加器位宽，避免 Verilog 无符号扩展。
-    assign prod_ext = $signed(a_in) * $signed(bt_in);
+    always @(*) begin
+        prod_ext = $signed(a_in) * $signed(bt_in);
+    end
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(posedge clk) begin
+        if (rst) begin
             a_out <= 8'd0; a_v_out <= 1'b0;
             bt_out <= 8'd0; bt_v_out <= 1'b0;
             acc <= {`NPU_ACC_W{1'b0}};

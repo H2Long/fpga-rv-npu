@@ -9,12 +9,12 @@
 `include "npu_defines.vh"
 
 module npu_ram #(parameter AW = 6) (
-    input  wire        clk,
-    input  wire        we,
-    input  wire [AW-1:0] waddr,
-    input  wire [31:0] wdata,
-    input  wire        re,
-    input  wire [AW-1:0] raddr,
+    input        clk,
+    input        we,
+    input [AW-1:0] waddr,
+    input [31:0] wdata,
+    input        re,
+    input [AW-1:0] raddr,
     output reg  [31:0] rdata
 );
 

@@ -11,23 +11,23 @@
 `include "npu_defines.vh"
 
 module c_tile_write_ctrl(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        write_go,
-    input  wire [`NPU_CBASE_W-1:0] c_base,    // tile_i*TM*N + tile_j*TN(元素地址)
-    input  wire [`NPU_DIM_W-1:0]  n_dim,
-    input  wire [`NPU_TILE_W-1:0] valid_tm, valid_tn,
+    input        clk,
+    input        rst,
+    input        write_go,
+    input [`NPU_CBASE_W-1:0] c_base,    // tile_i*TM*N + tile_j*TN(元素地址)
+    input [`NPU_DIM_W-1:0]  n_dim,
+    input [`NPU_TILE_W-1:0] valid_tm, valid_tn,
     // 累加器索引与量化结果(result_quantizer)
-    output wire [3:0]  acc_rd_idx,
-    input  wire [31:0] quant_word,
+    output reg [3:0]  acc_rd_idx,
+    input [31:0] quant_word,
     // 到 c_write_fifo
-    output wire        cwr_valid,
-    output wire [`NPU_CBUF_AW-1:0] cwr_addr,
-    output wire [31:0] cwr_data,
-    input  wire        cwr_ready,             // FIFO 未满
-    input  wire        cwr_empty,             // FIFO 已排空
+    output reg        cwr_valid,
+    output reg [`NPU_CBUF_AW-1:0] cwr_addr,
+    output reg [31:0] cwr_data,
+    input        cwr_ready,             // FIFO 未满
+    input        cwr_empty,             // FIFO 已排空
     // 状态
-    output wire        write_done
+    output reg        write_done
 );
 
     reg [4:0] idx;        // 0..15 扫描,16 表示扫描完成
@@ -40,16 +40,19 @@ module c_tile_write_ctrl(
     // 组合推进：有效 lane 且 FIFO 有空间时入队并前进；无效 lane 直接跳过。
     wire advance = (idx < 5'd16) && (lane_ok ? cwr_ready : 1'b1);
 
-    assign acc_rd_idx = idx[3:0];             // 组合直出,与 r/c 同源
-    // cwr_valid 与 cwr_ready 相与，表示本拍一定能完成一次 FIFO 入队。
-    assign cwr_valid  = write_go && lane_ok && cwr_ready;
     wire [`NPU_CBASE_W+1:0] c_addr_full = c_base + r * n_dim + c;
-    assign cwr_addr   = c_addr_full[`NPU_CBUF_AW-1:0];
-    assign cwr_data   = quant_word;
-    assign write_done = write_go && (idx >= 5'd16) && cwr_empty;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(*) begin
+        acc_rd_idx = idx[3:0];             // 组合直出,与 r/c 同源
+        // cwr_valid 与 cwr_ready 相与，表示本拍一定能完成一次 FIFO 入队。
+        cwr_valid  = write_go && lane_ok && cwr_ready;
+        cwr_addr   = c_addr_full[`NPU_CBUF_AW-1:0];
+        cwr_data   = quant_word;
+        write_done = write_go && (idx >= 5'd16) && cwr_empty;
+    end
+
+    always @(posedge clk) begin
+        if (rst) begin
             idx <= 5'd0;
         end else if (!write_go) begin
             idx <= 5'd0;

@@ -7,11 +7,11 @@
 `include "npu_defines.vh"
 
 module tile_result_collector(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        array_start,       // 新 tile 复位
-    input  wire        drain_done_i,
-    input  wire [16*`NPU_ACC_W-1:0] acc_flat,
+    input        clk,
+    input        rst,
+    input        array_start,       // 新 tile 复位
+    input        drain_done_i,
+    input [16*`NPU_ACC_W-1:0] acc_flat,
     output reg         c_result_valid,
     output reg  [`NPU_ACC_W-1:0] c_result,
     output reg  [3:0]  c_scan_index,      // 原始扫描下标(行主序)
@@ -24,8 +24,8 @@ module tile_result_collector(
 
     // drain_done 后从 PE[0][0] 到 PE[3][3] 逐拍输出 16 个累加器；
     // collect_done 在最后一个结果之后单拍通知 MAC 状态机。
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(posedge clk) begin
+        if (rst) begin
             state <= C_IDLE; idx <= 4'd0;
             c_result_valid <= 1'b0; c_result <= {`NPU_ACC_W{1'b0}};
             c_scan_index <= 4'd0; collect_done <= 1'b0;

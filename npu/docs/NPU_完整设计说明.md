@@ -212,7 +212,7 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 ### 11.1 `npu_system` CPU 端口
 
 ```text
-clk, rst_n
+clk, rst
 cpu_addr[31:0], cpu_wdata[31:0], cpu_byte_en[3:0]
 cpu_we, cpu_valid, cpu_rdata[31:0], cpu_ready
 ```
@@ -347,7 +347,7 @@ python3 scripts/draw_wave.py
 ## 17. 已知集成边界
 
 1. NPU 当前通过 `npu_system` 独立提供 MMIO，尚未接入 `project_risc_v` 的 AHB/APB 总线。
-2. `rst_n` 为 NPU 独立低有效复位，接入 SoC 时需要明确复位同步关系。
+2. `rst` 为 NPU 独立高有效同步复位，已经与 `clk` 对齐；接入 SoC 时仍需明确复位同步关系。
 3. 当前 `npu_mac` 保留部分 ready/status 端口，后续增加复杂反压时应将握手闭环化。
 4. FPGA 实现前需要重新检查 RAM/FIFO 推断、PE 阵列时序、C 写 FIFO 反压和资源使用率。
 

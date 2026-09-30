@@ -4,19 +4,26 @@
 `include "npu_defines.vh"
 
 module a_stream_ctrl(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire [`NPU_ABUF_AW-1:0] a_base,
-    input  wire [`NPU_TK_W-1:0]    valid_tk,
-    input  wire        prefetch_go,
-    output wire [`NPU_ABUF_AW-1:0] a_addr,
-    output wire        a_re
+    input        clk,
+    input        rst,
+    input [`NPU_ABUF_AW-1:0] a_base,
+    input [`NPU_TK_W-1:0]    valid_tk,
+    input        prefetch_go,
+    output reg [`NPU_ABUF_AW-1:0] a_addr,
+    output reg        a_re
 );
+    wire [`NPU_ABUF_AW-1:0] a_addr_w;
+    wire a_re_w;
 
     npu_stream_ctrl u_stream(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .base(a_base), .len(valid_tk), .go(prefetch_go),
-        .rd_addr(a_addr), .rd_re(a_re)
+        .rd_addr(a_addr_w), .rd_re(a_re_w)
     );
+
+    always @(*) begin
+        a_addr = a_addr_w;
+        a_re = a_re_w;
+    end
 
 endmodule

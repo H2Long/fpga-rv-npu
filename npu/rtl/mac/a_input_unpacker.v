@@ -6,18 +6,20 @@
 `include "npu_defines.vh"
 
 module a_input_unpacker(
-    input  wire        in_valid,
-    input  wire [31:0] in_data,
-    input  wire [3:0]  lane_en,
-    output wire [7:0]  lane0, lane1, lane2, lane3,
-    output wire        lanes_valid
+    input        in_valid,
+    input [31:0] in_data,
+    input [3:0]  lane_en,
+    output reg [7:0]  lane0, lane1, lane2, lane3,
+    output reg        lanes_valid
 );
 
-    assign lane0 = lane_en[0] ? in_data[7:0]   : 8'h00;
-    assign lane1 = lane_en[1] ? in_data[15:8]  : 8'h00;
-    assign lane2 = lane_en[2] ? in_data[23:16] : 8'h00;
-    assign lane3 = lane_en[3] ? in_data[31:24] : 8'h00;
-    // valid 描述整个 32 位字是否有效，四个 lane 共用同一个时序标志。
-    assign lanes_valid = in_valid;
+    always @(*) begin
+        lane0 = lane_en[0] ? in_data[7:0]   : 8'h00;
+        lane1 = lane_en[1] ? in_data[15:8]  : 8'h00;
+        lane2 = lane_en[2] ? in_data[23:16] : 8'h00;
+        lane3 = lane_en[3] ? in_data[31:24] : 8'h00;
+        // valid 描述整个 32 位字是否有效，四个 lane 共用同一个时序标志。
+        lanes_valid = in_valid;
+    end
 
 endmodule

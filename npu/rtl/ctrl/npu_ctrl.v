@@ -8,52 +8,66 @@
 `include "npu_defines.vh"
 
 module npu_ctrl(
-    input  wire        clk,
-    input  wire        rst_n,
+    input        clk,
+    input        rst,
     // 来自 npu_top:start_pulse + 锁存后的任务参数
-    input  wire        start_pulse,
-    input  wire [`NPU_DIM_W-1:0]  cfg_m, cfg_n, cfg_k,
-    input  wire [`NPU_TILE_W-1:0] cfg_tm, cfg_tn,
-    input  wire [`NPU_TK_W-1:0]   cfg_tk,
-    input  wire [`NPU_QS_W-1:0]   cfg_qshift,
+    input        start_pulse,
+    input [`NPU_DIM_W-1:0]  cfg_m, cfg_n, cfg_k,
+    input [`NPU_TILE_W-1:0] cfg_tm, cfg_tn,
+    input [`NPU_TK_W-1:0]   cfg_tk,
+    input [`NPU_QS_W-1:0]   cfg_qshift,
     // A/BT RAM 读请求(经 npu_buffer.npu_read_port_ctrl)
-    output wire [`NPU_ABUF_AW-1:0] a_addr,
-    output wire        a_re,
-    output wire [`NPU_BBUF_AW-1:0] bt_addr,
-    output wire        bt_re,
+    output reg [`NPU_ABUF_AW-1:0] a_addr,
+    output reg        a_re,
+    output reg [`NPU_BBUF_AW-1:0] bt_addr,
+    output reg        bt_re,
     // 预取 FIFO 接口(来自 npu_buffer)
-    input  wire        a_fifo_valid,
-    input  wire [31:0] a_fifo_rdata,
-    input  wire [`NPU_FIFO_AW:0] a_fifo_count,
-    output wire        a_fifo_pop,
-    input  wire        bt_fifo_valid,
-    input  wire [31:0] bt_fifo_rdata,
-    input  wire [`NPU_FIFO_AW:0] bt_fifo_count,
-    output wire        bt_fifo_pop,
+    input        a_fifo_valid,
+    input [31:0] a_fifo_rdata,
+    input [`NPU_FIFO_AW:0] a_fifo_count,
+    output reg        a_fifo_pop,
+    input        bt_fifo_valid,
+    input [31:0] bt_fifo_rdata,
+    input [`NPU_FIFO_AW:0] bt_fifo_count,
+    output reg        bt_fifo_pop,
     // 到 npu_mac
-    output wire        array_start, array_enable, array_clear_acc,
-    output wire        array_flush,
-    output wire        a_stream_valid,
-    output wire [31:0] a_stream_data,
-    output wire        bt_stream_valid,
-    output wire [31:0] bt_stream_data,
-    output wire [3:0]  a_lane_en, bt_lane_en,
-    input  wire        a_stream_ready,
-    input  wire        bt_stream_ready,
-    input  wire        array_done,
-    input  wire        c_result_valid,
-    input  wire [31:0] c_result,
-    input  wire [3:0]  c_result_index,
+    output reg        array_start, array_enable, array_clear_acc,
+    output reg        array_flush,
+    output reg        a_stream_valid,
+    output reg [31:0] a_stream_data,
+    output reg        bt_stream_valid,
+    output reg [31:0] bt_stream_data,
+    output reg [3:0]  a_lane_en, bt_lane_en,
+    input        a_stream_ready,
+    input        bt_stream_ready,
+    input        array_done,
+    input        c_result_valid,
+    input [31:0] c_result,
+    input [3:0]  c_result_index,
     // C 写回(到 npu_buffer.c_write_fifo)
-    output wire        cwr_valid,
-    output wire [`NPU_CBUF_AW-1:0] cwr_addr,
-    output wire [31:0] cwr_data,
-    input  wire        cwr_ready, cwr_empty, c_wr_pulse,
+    output reg        cwr_valid,
+    output reg [`NPU_CBUF_AW-1:0] cwr_addr,
+    output reg [31:0] cwr_data,
+    input        cwr_ready, cwr_empty, c_wr_pulse,
     // 状态(到 npu_top)
-    output wire        core_busy,
-    output wire        core_done,
-    output wire [`NPU_ERR_W-1:0] error_code
+    output reg        core_busy,
+    output reg        core_done,
+    output reg [`NPU_ERR_W-1:0] error_code
 );
+
+    wire [`NPU_ABUF_AW-1:0] a_addr_w;
+    wire a_re_w;
+    wire [`NPU_BBUF_AW-1:0] bt_addr_w;
+    wire bt_re_w;
+    wire a_fifo_pop_w, bt_fifo_pop_w;
+    wire array_start_w, array_enable_w, array_clear_acc_w, array_flush_w;
+    wire a_stream_valid_w, bt_stream_valid_w;
+    wire [31:0] a_stream_data_w, bt_stream_data_w;
+    wire [`NPU_CBUF_AW-1:0] cwr_addr_w;
+    wire cwr_valid_w;
+    wire [31:0] cwr_data_w;
+    wire core_busy_w, core_done_w;
+    wire [`NPU_ERR_W-1:0] error_code_w;
 
     // ---- 锁存参数 ----
     wire [`NPU_DIM_W-1:0]  lp_m, lp_n, lp_k;
@@ -62,7 +76,7 @@ module npu_ctrl(
     wire [`NPU_QS_W-1:0]   lp_qs;
 
     tile_param_latch u_tile_param_latch(
-        .clk(clk), .rst_n(rst_n), .start_pulse(start_pulse),
+        .clk(clk), .rst(rst), .start_pulse(start_pulse),
         .cfg_m(cfg_m), .cfg_n(cfg_n), .cfg_k(cfg_k),
         .cfg_tm(cfg_tm), .cfg_tn(cfg_tn), .cfg_tk(cfg_tk), .cfg_qshift(cfg_qshift),
         .lp_m(lp_m), .lp_n(lp_n), .lp_k(lp_k),
@@ -84,7 +98,7 @@ module npu_ctrl(
     wire sched_init, next_k_req, next_out_req;
 
     tile_scheduler u_tile_scheduler(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .sched_init(sched_init), .next_k_req(next_k_req), .next_out_req(next_out_req),
         .lp_m(lp_m), .lp_n(lp_n), .lp_k(lp_k),
         .lp_tm(lp_tm), .lp_tn(lp_tn), .lp_tk(lp_tk),
@@ -125,7 +139,7 @@ module npu_ctrl(
     wire acc_tile_clear;
 
     systolic_fsm u_systolic_fsm(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .start_pulse(start_pulse), .cfg_ok(cfg_ok), .chk_err_code(chk_err_code),
         .core_done(core_done),
         .first_k_tile(first_k_tile), .last_k_tile(last_k_tile),
@@ -137,20 +151,20 @@ module npu_ctrl(
         .ph_array_start(ph_array_start), .feed_go(feed_go), .drain_en(drain_en),
         .write_go(write_go), .feed_last(feed_last),
         .fsm_done(fsm_done), .err_abort(err_abort),
-        .error_code(error_code), .core_busy(core_busy)
+        .error_code(error_code_w), .core_busy(core_busy_w)
     );
 
     // ---- A/BT 读流控制 ----
     a_stream_ctrl u_a_stream_ctrl(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .a_base(a_base), .valid_tk(valid_tk), .prefetch_go(prefetch_go),
-        .a_addr(a_addr), .a_re(a_re)
+        .a_addr(a_addr_w), .a_re(a_re_w)
     );
 
     bt_stream_ctrl u_bt_stream_ctrl(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .bt_base(bt_base), .valid_tk(valid_tk), .prefetch_go(prefetch_go),
-        .bt_addr(bt_addr), .bt_re(bt_re)
+        .bt_addr(bt_addr_w), .bt_re(bt_re_w)
     );
 
     // ---- 成对送数 ----
@@ -160,17 +174,17 @@ module npu_ctrl(
         .a_fifo_valid(a_fifo_valid), .a_fifo_rdata(a_fifo_rdata),
         .bt_fifo_valid(bt_fifo_valid), .bt_fifo_rdata(bt_fifo_rdata),
         .pair_fire(pair_fire),
-        .a_fifo_pop(a_fifo_pop), .bt_fifo_pop(bt_fifo_pop),
-        .a_stream_valid(a_stream_valid), .a_stream_data(a_stream_data),
-        .bt_stream_valid(bt_stream_valid), .bt_stream_data(bt_stream_data)
+        .a_fifo_pop(a_fifo_pop_w), .bt_fifo_pop(bt_fifo_pop_w),
+        .a_stream_valid(a_stream_valid_w), .a_stream_data(a_stream_data_w),
+        .bt_stream_valid(bt_stream_valid_w), .bt_stream_data(bt_stream_data_w)
     );
 
     // ---- 阵列周期级控制 ----
     array_ctrl u_array_ctrl(
         .ph_array_start(ph_array_start), .feed_go(feed_go), .drain_en(drain_en),
         .feed_last(feed_last),
-        .array_start(array_start), .array_enable(array_enable),
-        .array_clear_acc(array_clear_acc), .array_flush(array_flush)
+        .array_start(array_start_w), .array_enable(array_enable_w),
+        .array_clear_acc(array_clear_acc_w), .array_flush(array_flush_w)
     );
 
     // ---- C tile 累加 -> 量化 -> 写回 ----
@@ -179,7 +193,7 @@ module npu_ctrl(
     wire [31:0] quant_word;
 
     c_tile_acc_ctrl u_c_tile_acc_ctrl(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .acc_tile_clear(acc_tile_clear), .load_mode(first_k_tile),
         .c_result_valid(c_result_valid), .c_result_index(c_result_index),
         .c_result(c_result),
@@ -191,26 +205,48 @@ module npu_ctrl(
     );
 
     c_tile_write_ctrl u_c_tile_write_ctrl(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .write_go(write_go), .c_base(c_base), .n_dim(lp_n),
         .valid_tm(valid_tm), .valid_tn(valid_tn),
         .acc_rd_idx(acc_rd_idx), .quant_word(quant_word),
-        .cwr_valid(cwr_valid), .cwr_addr(cwr_addr), .cwr_data(cwr_data),
+        .cwr_valid(cwr_valid_w), .cwr_addr(cwr_addr_w), .cwr_data(cwr_data_w),
         .cwr_ready(cwr_ready), .cwr_empty(cwr_empty), .write_done(write_done)
     );
 
     // ---- 完成控制 ----
     done_ctrl u_done_ctrl(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .start_pulse(start_pulse), .lp_m(lp_m), .lp_n(lp_n),
         .c_wr_pulse(c_wr_pulse), .fsm_done(fsm_done), .err_abort(err_abort),
-        .core_done(core_done)
+        .core_done(core_done_w)
     );
 
-    // ---- lane 使能(边界 tile 越界行/列在 unpacker 侧补零) ----
-    assign a_lane_en  = { (valid_tm >= 3'd4), (valid_tm >= 3'd3),
-                          (valid_tm >= 3'd2), (valid_tm >= 3'd1) };
-    assign bt_lane_en = { (valid_tn >= 3'd4), (valid_tn >= 3'd3),
-                          (valid_tn >= 3'd2), (valid_tn >= 3'd1) };
+    always @(*) begin
+        a_addr = a_addr_w;
+        a_re = a_re_w;
+        bt_addr = bt_addr_w;
+        bt_re = bt_re_w;
+        a_fifo_pop = a_fifo_pop_w;
+        bt_fifo_pop = bt_fifo_pop_w;
+        array_start = array_start_w;
+        array_enable = array_enable_w;
+        array_clear_acc = array_clear_acc_w;
+        array_flush = array_flush_w;
+        a_stream_valid = a_stream_valid_w;
+        a_stream_data = a_stream_data_w;
+        bt_stream_valid = bt_stream_valid_w;
+        bt_stream_data = bt_stream_data_w;
+        cwr_valid = cwr_valid_w;
+        cwr_addr = cwr_addr_w;
+        cwr_data = cwr_data_w;
+        core_busy = core_busy_w;
+        core_done = core_done_w;
+        error_code = error_code_w;
+        // ---- lane 使能(边界 tile 越界行/列在 unpacker 侧补零) ----
+        a_lane_en  = { (valid_tm >= 3'd4), (valid_tm >= 3'd3),
+                       (valid_tm >= 3'd2), (valid_tm >= 3'd1) };
+        bt_lane_en = { (valid_tn >= 3'd4), (valid_tn >= 3'd3),
+                       (valid_tn >= 3'd2), (valid_tn >= 3'd1) };
+    end
 
 endmodule

@@ -10,18 +10,20 @@
 `include "npu_defines.vh"
 
 module block_addr_gen(
-    input  wire [`NPU_TIDX_W-1:0] tile_i, tile_j, tile_k,
-    input  wire [`NPU_DIM_W-1:0]  lp_n, lp_k,
-    input  wire [`NPU_TILE_W-1:0] lp_tm, lp_tn,
-    input  wire [`NPU_TK_W-1:0]   lp_tk,
-    output wire [`NPU_ABUF_AW-1:0] a_base,
-    output wire [`NPU_BBUF_AW-1:0] bt_base,
-    output wire [`NPU_CBASE_W-1:0] c_base
+    input [`NPU_TIDX_W-1:0] tile_i, tile_j, tile_k,
+    input [`NPU_DIM_W-1:0]  lp_n, lp_k,
+    input [`NPU_TILE_W-1:0] lp_tm, lp_tn,
+    input [`NPU_TK_W-1:0]   lp_tk,
+    output reg [`NPU_ABUF_AW-1:0] a_base,
+    output reg [`NPU_BBUF_AW-1:0] bt_base,
+    output reg [`NPU_CBASE_W-1:0] c_base
 );
 
-    // 这些表达式是组合地址计算，不在本模块中寄存；FSM 在阶段边界使用稳定地址。
-    assign a_base  = (tile_i * lp_k + tile_k * lp_tk);
-    assign bt_base = (tile_j * lp_k + tile_k * lp_tk);
-    assign c_base  = (tile_i * lp_tm) * lp_n + tile_j * lp_tn;
+    always @(*) begin
+        // 这些表达式是组合地址计算，不在本模块中寄存；FSM 在阶段边界使用稳定地址。
+        a_base  = tile_i * lp_k + tile_k * lp_tk;
+        bt_base = tile_j * lp_k + tile_k * lp_tk;
+        c_base  = (tile_i * lp_tm) * lp_n + tile_j * lp_tn;
+    end
 
 endmodule

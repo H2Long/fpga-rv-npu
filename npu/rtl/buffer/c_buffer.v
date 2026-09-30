@@ -4,16 +4,22 @@
 `include "npu_defines.vh"
 
 module c_buffer(
-    input  wire        clk,
-    input  wire        we,
-    input  wire [`NPU_CBUF_AW-1:0] waddr,
-    input  wire [31:0] wdata,
-    input  wire        re,
-    input  wire [`NPU_CBUF_AW-1:0] raddr,
-    output wire [31:0] rdata
+    input        clk,
+    input        we,
+    input [`NPU_CBUF_AW-1:0] waddr,
+    input [31:0] wdata,
+    input        re,
+    input [`NPU_CBUF_AW-1:0] raddr,
+    output reg [31:0] rdata
 );
+    wire [31:0] rdata_w;
+
     npu_ram #(.AW(`NPU_CBUF_AW)) u_ram(
         .clk(clk), .we(we), .waddr(waddr), .wdata(wdata),
-        .re(re), .raddr(raddr), .rdata(rdata)
+        .re(re), .raddr(raddr), .rdata(rdata_w)
     );
+
+    always @(*) begin
+        rdata = rdata_w;
+    end
 endmodule

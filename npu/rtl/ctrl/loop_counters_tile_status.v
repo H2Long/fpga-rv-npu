@@ -7,16 +7,16 @@
 `include "npu_defines.vh"
 
 module loop_counters_tile_status(
-    input  wire [`NPU_TIDX_W-1:0] tile_i, tile_j, tile_k,
-    input  wire [`NPU_DIM_W-1:0]  lp_m, lp_n, lp_k,
-    input  wire [`NPU_TILE_W-1:0] lp_tm, lp_tn,
-    input  wire [`NPU_TK_W-1:0]   lp_tk,
-    output wire        first_k_tile,
-    output wire        last_k_tile,
-    output wire        last_output_tile,
-    output wire [`NPU_TILE_W-1:0] valid_tm,
-    output wire [`NPU_TILE_W-1:0] valid_tn,
-    output wire [`NPU_TK_W-1:0]   valid_tk
+    input [`NPU_TIDX_W-1:0] tile_i, tile_j, tile_k,
+    input [`NPU_DIM_W-1:0]  lp_m, lp_n, lp_k,
+    input [`NPU_TILE_W-1:0] lp_tm, lp_tn,
+    input [`NPU_TK_W-1:0]   lp_tk,
+    output reg        first_k_tile,
+    output reg        last_k_tile,
+    output reg        last_output_tile,
+    output reg [`NPU_TILE_W-1:0] valid_tm,
+    output reg [`NPU_TILE_W-1:0] valid_tn,
+    output reg [`NPU_TK_W-1:0]   valid_tk
 );
 
     wire [`NPU_TIDX_W-1:0] nt_i = (lp_tm == 0) ? {`NPU_TIDX_W{1'b0}} :
@@ -26,18 +26,19 @@ module loop_counters_tile_status(
     wire [`NPU_TIDX_W-1:0] nt_k = (lp_tk == 0) ? {`NPU_TIDX_W{1'b0}} :
                                     (lp_k + lp_tk - 1) / lp_tk;
 
-    assign first_k_tile     = (tile_k == 5'd0);
-    assign last_k_tile      = (tile_k + 5'd1 >= nt_k);
-    assign last_output_tile = (tile_i + 5'd1 >= nt_i) && (tile_j + 5'd1 >= nt_j);
-
     // 边界有效尺寸(越界部分由流控制补零 / 写回过滤)。
     // 配置检查保证任务运行时 lp_* 非零，因此这里不会发生非法减法路径。
     wire [`NPU_DIM_W-1:0] rem_m = lp_m - tile_i * lp_tm;   // 该 tile 起点后剩余行数, > 0
     wire [`NPU_DIM_W-1:0] rem_n = lp_n - tile_j * lp_tn;
     wire [`NPU_DIM_W-1:0] rem_k = lp_k - tile_k * lp_tk;
 
-    assign valid_tm = (rem_m > {3'd0, lp_tm}) ? lp_tm : rem_m[`NPU_TILE_W-1:0];
-    assign valid_tn = (rem_n > {3'd0, lp_tn}) ? lp_tn : rem_n[`NPU_TILE_W-1:0];
-    assign valid_tk = (rem_k > {1'b0,  lp_tk}) ? lp_tk : rem_k[`NPU_TK_W-1:0];
+    always @(*) begin
+        first_k_tile     = (tile_k == 5'd0);
+        last_k_tile      = (tile_k + 5'd1 >= nt_k);
+        last_output_tile = (tile_i + 5'd1 >= nt_i) && (tile_j + 5'd1 >= nt_j);
+        valid_tm = (rem_m > {3'd0, lp_tm}) ? lp_tm : rem_m[`NPU_TILE_W-1:0];
+        valid_tn = (rem_n > {3'd0, lp_tn}) ? lp_tn : rem_n[`NPU_TILE_W-1:0];
+        valid_tk = (rem_k > {1'b0,  lp_tk}) ? lp_tk : rem_k[`NPU_TK_W-1:0];
+    end
 
 endmodule

@@ -81,7 +81,7 @@ tb_npu.dut.u_npu_mac.u_mac_status
 
 ```text
 tb_npu.dut.clk
-tb_npu.dut.rst_n
+tb_npu.dut.rst
 tb_npu.dut.cpu_valid
 tb_npu.dut.cpu_we
 tb_npu.dut.cpu_addr
@@ -375,7 +375,7 @@ T3 的参数为 `M=6,N=7,TM=4,TN=4`，四个输出 Tile 的有效元素数量为
 ### `00_reset_mmio`
 
 ```text
-clk rst_n cpu_valid cpu_we cpu_addr cpu_wdata cpu_ready cpu_rdata
+clk rst cpu_valid cpu_we cpu_addr cpu_wdata cpu_ready cpu_rdata
 ```
 
 ### `01_task_control`

@@ -9,42 +9,42 @@
 `include "npu_defines.vh"
 
 module npu_buffer(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        core_busy,
+    input        clk,
+    input        rst,
+    input        core_busy,
     // CPU 侧端口(来自 npu_top.cpu_port_ctrl)
-    input  wire        cpu_a_we,  cpu_a_re,
-    input  wire [`NPU_ABUF_AW-1:0] cpu_a_addr,
-    input  wire [31:0] cpu_a_wdata,
-    input  wire        cpu_bt_we, cpu_bt_re,
-    input  wire [`NPU_BBUF_AW-1:0] cpu_bt_addr,
-    input  wire [31:0] cpu_bt_wdata,
-    input  wire        cpu_c_we,  cpu_c_re,
-    input  wire [`NPU_CBUF_AW-1:0] cpu_c_addr,
-    input  wire [31:0] cpu_c_wdata,
+    input        cpu_a_we,  cpu_a_re,
+    input [`NPU_ABUF_AW-1:0] cpu_a_addr,
+    input [31:0] cpu_a_wdata,
+    input        cpu_bt_we, cpu_bt_re,
+    input [`NPU_BBUF_AW-1:0] cpu_bt_addr,
+    input [31:0] cpu_bt_wdata,
+    input        cpu_c_we,  cpu_c_re,
+    input [`NPU_CBUF_AW-1:0] cpu_c_addr,
+    input [31:0] cpu_c_wdata,
     // NPU 读请求(来自 npu_ctrl)
-    input  wire [`NPU_ABUF_AW-1:0] npu_a_addr,
-    input  wire        npu_a_re,
-    input  wire [`NPU_BBUF_AW-1:0] npu_bt_addr,
-    input  wire        npu_bt_re,
+    input [`NPU_ABUF_AW-1:0] npu_a_addr,
+    input        npu_a_re,
+    input [`NPU_BBUF_AW-1:0] npu_bt_addr,
+    input        npu_bt_re,
     // CPU 读数据返回
-    output wire [31:0] a_rdata_cpu, bt_rdata_cpu, c_rdata_cpu,
+    output reg [31:0] a_rdata_cpu, bt_rdata_cpu, c_rdata_cpu,
     // 预取 FIFO 接口(到 npu_ctrl)
-    output wire        a_fifo_valid,
-    output wire [31:0] a_fifo_rdata,
-    output wire [`NPU_FIFO_AW:0] a_fifo_count,
-    input  wire        a_fifo_pop,
-    output wire        bt_fifo_valid,
-    output wire [31:0] bt_fifo_rdata,
-    output wire [`NPU_FIFO_AW:0] bt_fifo_count,
-    input  wire        bt_fifo_pop,
+    output reg        a_fifo_valid,
+    output reg [31:0] a_fifo_rdata,
+    output reg [`NPU_FIFO_AW:0] a_fifo_count,
+    input        a_fifo_pop,
+    output reg        bt_fifo_valid,
+    output reg [31:0] bt_fifo_rdata,
+    output reg [`NPU_FIFO_AW:0] bt_fifo_count,
+    input        bt_fifo_pop,
     // C 写回(来自 npu_ctrl.c_tile_write_ctrl)
-    input  wire        cwr_valid,
-    input  wire [`NPU_CBUF_AW-1:0] cwr_addr,
-    input  wire [31:0] cwr_data,
-    output wire        cwr_ready, cwr_empty, c_wr_pulse,
+    input        cwr_valid,
+    input [`NPU_CBUF_AW-1:0] cwr_addr,
+    input [31:0] cwr_data,
+    output reg        cwr_ready, cwr_empty, c_wr_pulse,
     // 状态
-    output wire        buffer_ready
+    output reg        buffer_ready
 );
 
     // A/BT 在运行期间由 NPU 读，空闲期间由 CPU 读写。
@@ -62,8 +62,6 @@ module npu_buffer(
         .we(a_ram_we), .waddr(a_ram_waddr), .wdata(cpu_a_wdata),
         .re(a_ram_re), .raddr(a_ram_raddr), .rdata(a_ram_rdata)
     );
-    assign a_rdata_cpu = a_ram_rdata;
-
     // ---- BT RAM 端口归属：与 A RAM 同构 ----
     wire [`NPU_BBUF_AW-1:0] bt_ram_waddr = cpu_bt_addr;
     wire                     bt_ram_we    = cpu_bt_we;
@@ -76,8 +74,6 @@ module npu_buffer(
         .we(bt_ram_we), .waddr(bt_ram_waddr), .wdata(cpu_bt_wdata),
         .re(bt_ram_re), .raddr(bt_ram_raddr), .rdata(bt_ram_rdata)
     );
-    assign bt_rdata_cpu = bt_ram_rdata;
-
     // ---- C RAM 端口归属 ----
     // C RAM 写端在空闲时来自 CPU，运行时来自 c_write_fifo；读端保留给 CPU。
     wire [`NPU_CBUF_AW-1:0] cwf_addr;   // c_write_fifo -> C RAM
@@ -94,42 +90,58 @@ module npu_buffer(
         .we(c_ram_we), .waddr(c_ram_waddr), .wdata(c_ram_wdata),
         .re(cpu_c_re), .raddr(cpu_c_addr), .rdata(c_ram_rdata)
     );
-    assign c_rdata_cpu = c_ram_rdata;
-
     // 同步 RAM 的读数据比 read enable 晚一拍返回，npu_read_port_ctrl
     // 将这个延迟后的 valid 与 RAM 数据一起送入预取 FIFO。
     // ---- NPU 读端口控制:同步读返回 -> FIFO ----
     wire a_fifo_push, bt_fifo_push;
+    wire [31:0] a_fifo_rdata_w, bt_fifo_rdata_w;
+    wire a_fifo_valid_w, bt_fifo_valid_w;
+    wire [`NPU_FIFO_AW:0] a_fifo_count_w, bt_fifo_count_w;
+    wire cwr_ready_w, cwr_empty_w, c_wr_pulse_w;
 
     npu_read_port_ctrl u_npu_read_port_ctrl(
-        .clk(clk), .rst_n(rst_n), .core_busy(core_busy),
+        .clk(clk), .rst(rst), .core_busy(core_busy),
         .a_re(npu_a_re),  .a_fifo_push(a_fifo_push),
         .bt_re(npu_bt_re), .bt_fifo_push(bt_fifo_push)
     );
 
     a_prefetch_fifo u_a_prefetch_fifo(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .push(a_fifo_push), .wdata(a_ram_rdata), .pop(a_fifo_pop),
-        .rdata(a_fifo_rdata), .valid(a_fifo_valid), .count(a_fifo_count)
+        .rdata(a_fifo_rdata_w), .valid(a_fifo_valid_w), .count(a_fifo_count_w)
     );
 
     bt_prefetch_fifo u_bt_prefetch_fifo(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .push(bt_fifo_push), .wdata(bt_ram_rdata), .pop(bt_fifo_pop),
-        .rdata(bt_fifo_rdata), .valid(bt_fifo_valid), .count(bt_fifo_count)
+        .rdata(bt_fifo_rdata_w), .valid(bt_fifo_valid_w), .count(bt_fifo_count_w)
     );
 
     // C 写 FIFO 将结果写回和 C RAM 的实际写脉冲解耦；done_ctrl 统计 c_wr_pulse。
     // ---- C 写 FIFO ----
     c_write_fifo u_c_write_fifo(
-        .clk(clk), .rst_n(rst_n), .core_busy(core_busy),
+        .clk(clk), .rst(rst), .core_busy(core_busy),
         .push(cwr_valid), .waddr(cwr_addr), .wdata(cwr_data),
-        .ready(cwr_ready), .empty(cwr_empty),
+        .ready(cwr_ready_w), .empty(cwr_empty_w),
         .ram_we(cwf_we), .ram_addr(cwf_addr), .ram_wdata(cwf_data),
-        .c_wr_pulse(c_wr_pulse)
+        .c_wr_pulse(c_wr_pulse_w)
     );
 
-    // Buffer 在 NPU 空闲时可供 CPU 访问，运行期间由 NPU 独占。
-    assign buffer_ready = !core_busy;
+    always @(*) begin
+        a_rdata_cpu = a_ram_rdata;
+        bt_rdata_cpu = bt_ram_rdata;
+        c_rdata_cpu = c_ram_rdata;
+        a_fifo_rdata = a_fifo_rdata_w;
+        a_fifo_valid = a_fifo_valid_w;
+        a_fifo_count = a_fifo_count_w;
+        bt_fifo_rdata = bt_fifo_rdata_w;
+        bt_fifo_valid = bt_fifo_valid_w;
+        bt_fifo_count = bt_fifo_count_w;
+        cwr_ready = cwr_ready_w;
+        cwr_empty = cwr_empty_w;
+        c_wr_pulse = c_wr_pulse_w;
+        // Buffer 在 NPU 空闲时可供 CPU 访问，运行期间由 NPU 独占。
+        buffer_ready = !core_busy;
+    end
 
 endmodule

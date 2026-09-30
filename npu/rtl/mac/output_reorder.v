@@ -6,13 +6,15 @@
 `include "npu_defines.vh"
 
 module output_reorder(
-    input  wire [3:0] scan_index,     // {row[1:0], col[1:0]}
-    output wire [3:0] c_result_index  // row*Q + col
+    input [3:0] scan_index,     // {row[1:0], col[1:0]}
+    output reg [3:0] c_result_index  // row*Q + col
 );
 
     wire [1:0] row = scan_index[3:2];
     wire [1:0] col = scan_index[1:0];
 
-    assign c_result_index = row * `NPU_Q + col;
+    always @(*) begin
+        c_result_index = row * `NPU_Q + col;
+    end
 
 endmodule

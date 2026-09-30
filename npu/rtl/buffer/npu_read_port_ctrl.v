@@ -7,21 +7,21 @@
 `include "npu_defines.vh"
 
 module npu_read_port_ctrl(
-    input  wire        clk,
-    input  wire        rst_n,
-    input  wire        core_busy,
+    input        clk,
+    input        rst,
+    input        core_busy,
     // A 通道
-    input  wire        a_re,
-    output wire        a_fifo_push,
+    input        a_re,
+    output reg        a_fifo_push,
     // BT 通道
-    input  wire        bt_re,
-    output wire        bt_fifo_push
+    input        bt_re,
+    output reg        bt_fifo_push
 );
 
     reg a_re_d, bt_re_d;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
+    always @(posedge clk) begin
+        if (rst) begin
             a_re_d <= 1'b0; bt_re_d <= 1'b0;
         end else begin
             // 同步 RAM：本拍发起 re，下一拍 RAM 输出对应数据。
@@ -30,7 +30,9 @@ module npu_read_port_ctrl(
         end
     end
 
-    assign a_fifo_push  = a_re_d;
-    assign bt_fifo_push = bt_re_d;
+    always @(*) begin
+        a_fifo_push  = a_re_d;
+        bt_fifo_push = bt_re_d;
+    end
 
 endmodule

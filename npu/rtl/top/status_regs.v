@@ -12,19 +12,21 @@
 `include "npu_defines.vh"
 
 module status_regs(
-    input  wire                 req_we,          // 只读窗口保留该端口，当前不参与译码
-    input  wire [2:0]           ctrl_reg_off,   // 复用 addr 低位(0x20->0, 0x24->1)
-    input  wire                 busy_i,
-    input  wire                 done_i,
-    input  wire                 error_i,
-    input  wire                 buffer_ready_i,
-    input  wire [`NPU_ERR_W-1:0] error_code_i,
-    output wire [31:0]          status_rdata
+    input                 req_we,          // 只读窗口保留该端口，当前不参与译码
+    input [2:0]           ctrl_reg_off,   // 复用 addr 低位(0x20->0, 0x24->1)
+    input                 busy_i,
+    input                 done_i,
+    input                 error_i,
+    input                 buffer_ready_i,
+    input [`NPU_ERR_W-1:0] error_code_i,
+    output reg [31:0]          status_rdata
 );
 
     // addr_decoder 将 0x20 映射为 ctrl_reg_off=0，将 0x24 映射为 1。
-    assign status_rdata = (ctrl_reg_off == 3'd0) ?
-        {28'd0, buffer_ready_i, error_i, done_i, busy_i} :
-        {24'd0, error_code_i};
+    always @(*) begin
+        status_rdata = (ctrl_reg_off == 3'd0) ?
+            {28'd0, buffer_ready_i, error_i, done_i, busy_i} :
+            {24'd0, error_code_i};
+    end
 
 endmodule

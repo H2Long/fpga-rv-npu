@@ -11,17 +11,20 @@
 `include "npu_defines.vh"
 
 module npu_system(
-    input  wire        clk,
-    input  wire        rst_n,
+    input        clk,
+    input        rst,
     // CPU MMIO 总线
-    input  wire [31:0] cpu_addr,
-    input  wire [31:0] cpu_wdata,
-    input  wire [3:0]  cpu_byte_en,
-    input  wire        cpu_we,
-    input  wire        cpu_valid,
-    output wire [31:0] cpu_rdata,
-    output wire        cpu_ready
+    input [31:0] cpu_addr,
+    input [31:0] cpu_wdata,
+    input [3:0]  cpu_byte_en,
+    input        cpu_we,
+    input        cpu_valid,
+    output reg [31:0] cpu_rdata,
+    output reg        cpu_ready
 );
+
+    wire [31:0] cpu_rdata_w;
+    wire        cpu_ready_w;
 
     // npu_top 与 npu_ctrl 之间的任务级控制接口。
     wire        start_pulse;
@@ -69,10 +72,10 @@ module npu_system(
 
     // ============ npu_top ============
     npu_top u_npu_top(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .cpu_addr(cpu_addr), .cpu_wdata(cpu_wdata), .cpu_byte_en(cpu_byte_en),
         .cpu_we(cpu_we), .cpu_valid(cpu_valid),
-        .cpu_rdata(cpu_rdata), .cpu_ready(cpu_ready),
+        .cpu_rdata(cpu_rdata_w), .cpu_ready(cpu_ready_w),
         .start_pulse(start_pulse),
         .cfg_m(cfg_m), .cfg_n(cfg_n), .cfg_k(cfg_k),
         .cfg_tm(cfg_tm), .cfg_tn(cfg_tn), .cfg_tk(cfg_tk), .cfg_qshift(cfg_qshift),
@@ -88,7 +91,7 @@ module npu_system(
 
     // ============ npu_ctrl ============
     npu_ctrl u_npu_ctrl(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .start_pulse(start_pulse),
         .cfg_m(cfg_m), .cfg_n(cfg_n), .cfg_k(cfg_k),
         .cfg_tm(cfg_tm), .cfg_tn(cfg_tn), .cfg_tk(cfg_tk), .cfg_qshift(cfg_qshift),
@@ -114,7 +117,7 @@ module npu_system(
 
     // ============ npu_buffer ============
     npu_buffer u_npu_buffer(
-        .clk(clk), .rst_n(rst_n), .core_busy(core_busy),
+        .clk(clk), .rst(rst), .core_busy(core_busy),
         .cpu_a_we(cpu_a_we), .cpu_a_re(cpu_a_re), .cpu_a_addr(cpu_a_addr),
         .cpu_a_wdata(cpu_a_wdata),
         .cpu_bt_we(cpu_bt_we), .cpu_bt_re(cpu_bt_re), .cpu_bt_addr(cpu_bt_addr),
@@ -135,7 +138,7 @@ module npu_system(
 
     // ============ npu_mac ============
     npu_mac u_npu_mac(
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst(rst),
         .array_start(array_start), .array_enable(array_enable),
         .array_clear_acc(array_clear_acc), .array_flush(array_flush),
         .a_stream_valid(a_stream_valid), .a_stream_data(a_stream_data),
@@ -146,5 +149,10 @@ module npu_system(
         .c_result_valid(c_result_valid), .c_result(c_result),
         .c_result_index(c_result_index)
     );
+
+    always @(*) begin
+        cpu_rdata = cpu_rdata_w;
+        cpu_ready = cpu_ready_w;
+    end
 
 endmodule
