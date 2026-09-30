@@ -13,13 +13,11 @@ module start_ctrl(
     input        start_req,
     input        clear_done_req,
     input [`NPU_DIM_W-1:0]  cfg_m, cfg_n, cfg_k,
-    input [`NPU_TILE_W-1:0] cfg_tm, cfg_tn,
     input [`NPU_TK_W-1:0]   cfg_tk,
     input [`NPU_QS_W-1:0]   cfg_qshift,
     input        core_done_i,
     output reg         start_pulse,
     output reg  [`NPU_DIM_W-1:0]  m_l, n_l, k_l,
-    output reg  [`NPU_TILE_W-1:0] tm_l, tn_l,
     output reg  [`NPU_TK_W-1:0]   tk_l,
     output reg  [`NPU_QS_W-1:0]   qs_l,
     output reg        busy_status,
@@ -38,14 +36,14 @@ module start_ctrl(
         if (rst) begin
             state <= ST_IDLE; start_pulse <= 1'b0;
             m_l <= 6'd0; n_l <= 6'd0; k_l <= 6'd0;
-            tm_l <= 3'd0; tn_l <= 3'd0; tk_l <= 5'd0; qs_l <= 5'd0;
+            tk_l <= 5'd0; qs_l <= 5'd0;
         end else begin
             start_pulse <= 1'b0;
             case (state)
                 ST_IDLE: begin
                     if (start_req) begin
                         m_l <= cfg_m;   n_l <= cfg_n;   k_l <= cfg_k;
-                        tm_l <= cfg_tm; tn_l <= cfg_tn; tk_l <= cfg_tk;
+                        tk_l <= cfg_tk;
                         qs_l <= cfg_qshift;
                         start_pulse <= 1'b1;
                         state <= ST_RUN;

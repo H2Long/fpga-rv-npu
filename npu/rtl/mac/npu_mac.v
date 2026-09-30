@@ -11,24 +11,19 @@
 module npu_mac(
     input        clk,
     input        rst,
-    // 阵列控制(来自 npu_ctrl 的阶段译码)
+    // 阵列控制(来自 tile_controller 的阶段译码)
     input        array_start,
     input        array_enable,
-    input        array_clear_acc,
-    input        array_flush,
-    // A/BT 输入流(来自 npu_ctrl.pair_stream_ctrl)
-    input        a_stream_valid,
+    input        drain_en,
+    // A/BT 输入流(来自 tile_controller.pair_stream_ctrl)
+    input        stream_valid,
     input [31:0] a_stream_data,
-    input        bt_stream_valid,
     input [31:0] bt_stream_data,
     input [3:0]  a_lane_en,
     input [3:0]  bt_lane_en,
-    // 流握手
-    output reg        a_stream_ready,
-    output reg        bt_stream_ready,
-    // 状态(到 npu_ctrl)
-    output reg        array_done,
-    // C 结果流(到 npu_ctrl.c_tile_acc_ctrl)
+    // 状态(到 tile_controller)
+    output reg        collect_done,
+    // C 结果流(到 tile_controller.c_tile_acc_ctrl)
     output reg        c_result_valid,
     output reg [`NPU_ACC_W-1:0] c_result,
     output reg [3:0]  c_result_index
@@ -41,13 +36,13 @@ module npu_mac(
     wire       b_lv;
 
     input_unpacker u_a_input_unpacker(
-        .in_valid(a_stream_valid), .in_data(a_stream_data), .lane_en(a_lane_en),
+        .in_valid(stream_valid), .in_data(a_stream_data), .lane_en(a_lane_en),
         .lane0(a_l0), .lane1(a_l1), .lane2(a_l2), .lane3(a_l3),
         .lanes_valid(a_lv)
     );
 
     input_unpacker u_bt_input_unpacker(
-        .in_valid(bt_stream_valid), .in_data(bt_stream_data), .lane_en(bt_lane_en),
+        .in_valid(stream_valid), .in_data(bt_stream_data), .lane_en(bt_lane_en),
         .lane0(b_l0), .lane1(b_l1), .lane2(b_l2), .lane3(b_l3),
         .lanes_valid(b_lv)
     );
@@ -72,7 +67,7 @@ module npu_mac(
     wire [16*`NPU_ACC_W-1:0] acc_flat;
 
     pe_array u_pe_array(
-        .clk(clk), .rst(rst), .enable(array_enable), .clear_acc(array_clear_acc),
+        .clk(clk), .rst(rst), .enable(array_enable), .clear_acc(array_start),
         .a_lanes({a_sk3, a_sk2, a_sk1, a_sk0}),
         .a_lane_v({a_sk_v3, a_sk_v2, a_sk_v1, a_sk_v0}),
         .bt_lanes({bt_sk3, bt_sk2, bt_sk1, bt_sk0}),
@@ -82,13 +77,13 @@ module npu_mac(
 
     // ---- 排空与收集 ----
     // drain_done 只代表波前已经传播到最远端，collector 还要再串行输出 16 个结果。
-    wire drain_done, collect_done;
+    wire drain_done, collect_done_w;
     wire c_result_valid_w;
     wire [`NPU_ACC_W-1:0] c_result_w;
 
     drain_controller u_drain_controller(
         .clk(clk), .rst(rst),
-        .array_start(array_start), .array_flush(array_flush), .array_enable(array_enable),
+        .array_start(array_start), .drain_en(drain_en), .array_enable(array_enable),
         .drain_done(drain_done)
     );
 
@@ -99,19 +94,17 @@ module npu_mac(
         .array_start(array_start), .drain_done_i(drain_done), .acc_flat(acc_flat),
         .c_result_valid(c_result_valid_w), .c_result(c_result_w),
         .c_scan_index(scan_index),
-        .collect_done(collect_done)
+        .collect_done(collect_done_w)
     );
 
-    // 当前阵列没有额外的随机反压：feed 和 drain 期间都可以推进。
-    // ready 与 array_enable 同源，pair_stream_ctrl 用它保证只有阵列推进时才 pop FIFO。
+    // 当前阵列没有额外的随机反压：feed 和 drain 期间都可以推进；
+    // pair_stream_ctrl 在 feed 阶段根据两侧 FIFO count 产生统一 stream_valid。
     always @(*) begin
-        a_stream_ready  = array_enable;
-        bt_stream_ready = array_enable;
         c_result_valid  = c_result_valid_w;
         c_result        = c_result_w;
         // collector 当前按行主序扫描，扫描下标就是逻辑 C 下标。
         c_result_index  = scan_index;
-        array_done      = collect_done;
+        collect_done    = collect_done_w;
     end
 
 endmodule

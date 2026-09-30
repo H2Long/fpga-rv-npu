@@ -8,7 +8,7 @@
 
 - 4×4 输出驻留式脉动阵列(P=Q=4),PE 累加器 32 位
 - A/BT Buffer 64×32 bit,C Buffer 256×32 bit(一个 32 位字存一个 C 元素)
-- 三层 tile 循环(tile_i/tile_j/tile_k),TM/TN ≤ 4,TK ≤ min(K, 16)
+- 三层 tile 循环(tile_i/tile_j/tile_k),TM=TN=4 固定,TK ≤ min(K, 16)
 - 边界 tile 越界行/列在 unpacker 侧补零,越界 k 不读取,越界 C 项不写回
 - K 方向部分和在 `c_tile_acc_ctrl` 中累加;最后经舍入/饱和量化写入 C Buffer
 - CPU 通过 MMIO 配置、启动、查询状态、装载/读取 Buffer;运行期间(core_busy=1)CPU 端口被封锁
@@ -43,12 +43,12 @@ RTL 文件包含系统顶层、功能模块和通用基元；A/BT/C 存储、FIF
 | `0x0000_0004` | `M_CFG` | M,6 位 |
 | `0x0008` | `N_CFG` | N,6 位 |
 | `0x000C` | `K_CFG` | K,6 位 |
-| `0x0010` | `TM_CFG` | 行 tile 尺寸,1..4 |
-| `0x0014` | `TN_CFG` | 列 tile 尺寸,1..4 |
+| `0x0010` | 保留 | TM 固定为 4 |
+| `0x0014` | 保留 | TN 固定为 4 |
 | `0x0018` | `TK_CFG` | K 方向 tile 尺寸,1..min(K,16) |
 | `0x001C` | `QUANT_CFG` | 结果右移位数(0=直通) |
-| `0x0020` | `STATUS` | bit0 BUSY / bit1 DONE / bit2 ERROR / bit3 BUFFER_READY |
-| `0x0024` | `ERR_CODE` | 1=维度为 0,2=tile 超出阵列,3=超 Buffer 容量,4=TK 非法 |
+| `0x0020` | `STATUS` | bit0 BUSY / bit1 DONE / bit3 BUFFER_READY |
+| `0x0024` | 保留 | 读取为 0 |
 | `0x1000~0x10FF` | A Buffer | 64 字 |
 | `0x2000~0x20FF` | BT Buffer | 64 字 |
 | `0x3000~0x33FF` | C Buffer | 256 字 |
@@ -87,18 +87,13 @@ tile 基地址:`A 字基址 = tile_i*K + tile_k*TK`,`BT 字基址 = tile_j*K + t
 T1_单tile_4x4x4      PASS : M=4  N=4  K=4  TM=TN=4 TK=4 q=0 | C 写 16  项, 计算耗时 72   周期
 T2_满规模_16x16x16   PASS : M=16 N=16 K=16 TM=TN=4 TK=4 q=0 | C 写 256 项, 计算耗时 3036 周期
 T3_边界_6x7x9        PASS : M=6  N=7  K=9  TM=TN=4 TK=3 q=0 | C 写 42  项, 计算耗时 572  周期
-T4_小tile_5x5x6      PASS : M=5  N=5  K=6  TM=2 TN=3 TK=3 q=0 | C 写 25 项, 计算耗时 612  周期
+T4_边界_5x5x6        PASS : M=5  N=5  K=6  TM=TN=4 TK=3 q=0 | C 写 25 项, 计算耗时 412  周期
 T5_量化_8x8x8_q2     PASS : M=8  N=8  K=8  TM=TN=4 TK=8 q=2 | C 写 64  项, 计算耗时 296  周期
-T6_零维错误          PASS : DONE+ERROR, ERR_CODE=1
-T7_超容量错误        PASS : DONE+ERROR, ERR_CODE=3
-T8_TM为零错误        PASS : DONE+ERROR, ERR_CODE=2
-T9_TN为零错误        PASS : DONE+ERROR, ERR_CODE=2
-T10_TK为零错误       PASS : DONE+ERROR, ERR_CODE=4
-==== 结果: PASS=10 FAIL=0 ====
+==== 结果: PASS=5 FAIL=0 ====
 ```
 
 覆盖:单 tile / 64 tile 多 K 累加 / M、N 非 tile 倍数的边界补零 / tile 步长小于阵列规模 /
-负数舍入量化 / 尺寸、容量、TM、TN、TK 错误路径。数据为固定种子随机 INT8(含负数),期望值由测试台
+负数舍入量化和 M/N 边界 Tile。数据为固定种子随机 INT8(含负数),期望值由测试台
 按相同量化公式独立计算。
 
 ## 7. 复现
@@ -131,7 +126,7 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 - 文档中"TLA 握手、valid=1&&ready=0 保持"的原则体现为:FIFO 未满/非空才 push/pop、
   pair 两侧同时有效才同时弹出、写 FIFO 满则写回控制暂停。
 - `core_done` 语义:最后一笔 C 数据**已写入 RAM**(c_wr_pulse 计数达到 M*N),而非仅进入 FIFO。
-- `array_done` 语义:16 个结果**已全部送出并被累加器消费**。
+- `collect_done` 语义:16 个结果**已全部送出并被累加器消费**。
 
 ## 10. 全部 RTL 模块清单
 
@@ -144,7 +139,7 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 | `npu_system` | `npu_system.v` | 连接四个平面，提供 CPU MMIO 顶层端口 |
 | `npu_top` | `npu_top.v` | CPU 控制平面总封装 |
 | `mmio_if` | `mmio_if.v` | 锁存请求、复用读响应、产生 `cpu_ready` |
-| `control_regs` | `control_regs.v` | M/N/K、TM/TN/TK、qshift 和命令寄存器 |
+| `control_regs` | `control_regs.v` | M/N/K、TK、qshift 和命令寄存器 |
 | `start_ctrl` | `start_ctrl.v` | 启动脉冲、参数锁存、任务完成状态 |
 | `buffer_access_ctrl` | `buffer_access_ctrl.v` | 地址窗口、CPU/NPU 仲裁、字节屏蔽和 RAM 端口 |
 
@@ -152,7 +147,7 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 
 | 模块 | 文件 | 责任 |
 |---|---|---|
-| `npu_ctrl` | `npu_ctrl.v` | 调度中心，连接全部控制子模块 |
+| `tile_controller` | `tile_controller.v` | Tile 调度、地址生成和 C Tile 写回 |
 | `tile_scheduler` | `tile_scheduler.v` | 维护 `tile_i/tile_j/tile_k` |
 | `systolic_fsm` | `systolic_fsm.v` | 预取、喂数、排空、累加、写回状态机 |
 | `npu_stream_ctrl` | `common/npu_stream_ctrl.v` | A/BT 共用的连续读地址控制 |
@@ -202,32 +197,32 @@ cpu_addr[31:0], cpu_wdata[31:0], cpu_byte_en[3:0]
 cpu_we, cpu_valid, cpu_rdata[31:0], cpu_ready
 ```
 
-### 11.2 `npu_top <-> npu_ctrl`
+### 11.2 `npu_top <-> tile_controller`
 
 ```text
 start_pulse
 cfg_m/cfg_n/cfg_k[5:0]
 cfg_tm/cfg_tn[2:0], cfg_tk[4:0], cfg_qshift[4:0]
-core_busy, core_done, error_code[7:0]
+core_busy, core_done
 ```
 
 `start_ctrl` 在 `start_pulse` 时锁存软件配置，运行期间软件继续写寄存器不会影响当前任务。
 
-### 11.3 `npu_ctrl <-> npu_buffer`
+### 11.3 `tile_controller <-> npu_buffer`
 
 ```text
 A/BT 读：a_addr[5:0], a_re, bt_addr[5:0], bt_re
-A/BT FIFO：valid, rdata[31:0], count, pop
+A/BT FIFO：rdata[31:0], count, pop
 C 写回：cwr_valid, cwr_addr[7:0], cwr_data[31:0]
 C FIFO：cwr_ready, cwr_empty, c_wr_pulse
 ```
 
-### 11.4 `npu_ctrl <-> npu_mac`
+### 11.4 `tile_controller <-> npu_mac`
 
 ```text
-阵列控制：array_start, array_enable, array_clear_acc, array_flush
-A/BT 流：a_stream_valid/data, bt_stream_valid/data, a_lane_en, bt_lane_en
-阵列完成：array_done
+阵列控制：array_start, array_enable, drain_en
+A/BT 流：stream_valid, a_stream_data, bt_stream_data, a_lane_en, bt_lane_en
+阵列完成：collect_done
 C 结果：c_result_valid, c_result[31:0], c_result_index[3:0]
 ```
 
@@ -243,12 +238,12 @@ CPU 对三块 RAM 各有地址、读使能、写使能、写数据和读数据�
 | `0x0000_0004` | `M_CFG` | M，6 bit |
 | `0x0000_0008` | `N_CFG` | N，6 bit |
 | `0x0000_000C` | `K_CFG` | K，6 bit |
-| `0x0000_0010` | `TM_CFG` | 1..4 |
-| `0x0000_0014` | `TN_CFG` | 1..4 |
+| `0x0000_0010` | 保留 | TM 固定为 4 |
+| `0x0000_0014` | 保留 | TN 固定为 4 |
 | `0x0000_0018` | `TK_CFG` | 1..16 |
 | `0x0000_001C` | `QUANT_CFG` | 右移量 |
-| `0x0000_0020` | `STATUS` | bit0 BUSY，bit1 DONE，bit2 ERROR，bit3 BUFFER_READY |
-| `0x0000_0024` | `ERR_CODE` | 错误码 |
+| `0x0000_0020` | `STATUS` | bit0 BUSY，bit1 DONE，bit3 BUFFER_READY |
+| `0x0000_0024` | 保留 | 读取为 0 |
 | `0x0000_1000..10FF` | A Buffer | 64 个 32 位字 |
 | `0x0000_2000..20FF` | BT Buffer | 64 个 32 位字 |
 | `0x0000_3000..33FF` | C Buffer | 256 个 32 位字 |
@@ -259,18 +254,18 @@ A/BT 一个 32 位字装四个连续行/列的 INT8。C 一个 32 位字保存�
 
 ```text
 1. CPU 写 A/BT Buffer。
-2. CPU 写 M/N/K、TM/TN/TK 和 qshift。
+2. CPU 写 M/N/K、TK 和 qshift。
 3. CPU 写 CTRL.start。
 4. start_ctrl 锁存参数，产生 start_pulse。
-5. npu_ctrl 内部组合逻辑检查参数。
+5. tile_controller 直接使用合法配置。
 6. tile_scheduler 选择 tile_i/tile_j/tile_k。
-7. npu_ctrl 内部组合逻辑计算 A/BT/C tile 地址。
+7. tile_controller 内部组合逻辑计算 A/BT/C tile 地址。
 8. 两个 npu_stream_ctrl 实例预取 valid_tk 个字。
 9. RAM 返回数据进入 A/BT prefetch FIFO。
 10. pair_stream_ctrl 成对弹出 A/BT。
 11. unpacker 拆出 4+4 个 INT8，skew pipeline 注入波前。
 12. PE 阵列执行乘加，A 向右、BT 向下传播。
-13. array_flush 后等待 P+Q-2 及流水线附加周期。
+13. drain_en 后等待 P+Q-2 及流水线附加周期。
 14. collector 串行输出 16 个结果，扫描下标直接作为逻辑结果索引。
 15. c_tile_acc_ctrl 沿 tile_k 累加。
 16. 最后一个 K tile 经 result_quantizer 处理后进入 C 写 FIFO。
@@ -281,13 +276,12 @@ A/BT 一个 32 位字装四个连续行/列的 INT8。C 一个 32 位字保存�
 
 ## 14. 握手和边界规则
 
-- `valid=1 && ready=0` 时，数据和 valid 必须保持。
-- A/BT 只有同时有效时才允许 pair pop。
+- A/BT FIFO count 同时非零时才允许 pair pop。
 - FIFO 满禁止 push，FIFO 空禁止 pop。
 - `valid_tm/valid_tn` 控制边界行/列 lane，越界 lane 补零。
 - `valid_tk` 控制 K tile 实际读取长度，越界 K 不访问 RAM。
 - `c_tile_write_ctrl` 不为越界 C 元素产生写请求。
-- `array_done` 表示结果流已消费完；`core_done` 表示最后一个 C 元素已经落入 RAM。
+- `collect_done` 表示结果流已消费完；`core_done` 表示最后一个 C 元素已经落入 RAM。
 
 ## 15. 验证覆盖
 
@@ -296,10 +290,8 @@ A/BT 一个 32 位字装四个连续行/列的 INT8。C 一个 32 位字保存�
 | 4x4x4 | 单 Tile 基本乘法 | PASS，72 周期 |
 | 16x16x16 | 多输出 Tile、多个 K Tile 累加 | PASS，3036 周期 |
 | 6x7x9 | M/N/K 非 Tile 整数倍、补零 | PASS，572 周期 |
-| 5x5x6 | TM=2、TN=3 的非标准 Tile | PASS，612 周期 |
+| 5x5x6 | TM=TN=4 的 M/N 边界 Tile | PASS，412 周期 |
 | 8x8x8 q2 | 负数、舍入、右移和饱和 | PASS，296 周期 |
-| M=0 | 尺寸检查 | PASS，ERR_CODE=1 |
-| Buffer 超容量 | 容量检查 | PASS，ERR_CODE=3 |
 
 完整结果为 `PASS=10 FAIL=0`。测试台使用独立整数计算生成期望矩阵，不直接复用 RTL 内部结果。
 
@@ -334,14 +326,14 @@ python3 scripts/draw_wave.py
 
 1. NPU 当前通过 `npu_system` 独立提供 MMIO，尚未接入 `project_risc_v` 的 AHB/APB 总线。
 2. `rst` 为 NPU 独立高有效同步复位，已经与 `clk` 对齐；接入 SoC 时仍需明确复位同步关系。
-3. 当前 `npu_mac` 的 `a_stream_ready/bt_stream_ready` 与 `array_enable` 同源；后续增加复杂反压时应将握手闭环化。
+3. 当前 A/BT 成对流没有独立反压，`stream_valid` 由 `pair_fire` 产生；后续增加复杂反压时应重新引入成对 ready/valid 握手。
 4. FPGA 实现前需要重新检查 RAM/FIFO 推断、PE 阵列时序、C 写 FIFO 反压和资源使用率。
 
 ## 18. 总结
 
 ```text
 npu_top    = CPU/MMIO 控制平面
-npu_ctrl   = Tile 调度、地址生成和时间控制平面
+tile_controller = Tile 调度、地址生成和时间控制平面
 npu_buffer = A/BT/C 存储与搬运平面
 npu_mac    = INT8 脉动阵列计算平面
 ```

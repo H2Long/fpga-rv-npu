@@ -2,8 +2,8 @@
 // npu_top — CPU 控制平面
 //
 // 本模块把 CPU 的 MMIO 总线拆成三个方向：
-//   1. 控制寄存器：保存 M/N/K、TM/TN/TK、量化参数；
-//   2. 状态寄存器：返回 BUSY、DONE、ERROR、BUFFER_READY 和错误码；
+//   1. 控制寄存器：保存 M/N/K、TK、量化参数；TM/TN 固定为 4；
+//   2. 状态寄存器：返回 BUSY、DONE 和 BUFFER_READY；
 //   3. Buffer 端口：把 0x1000/0x2000/0x3000 地址窗口转换成 RAM 操作。
 //
 // start_ctrl 在 start_req 到来时锁存配置并产生 start_pulse，运行期间软件
@@ -22,16 +22,14 @@ module npu_top(
     input        cpu_valid,
     output reg [31:0] cpu_rdata,
     output reg        cpu_ready,
-    // 到 npu_ctrl(启动脉冲 + 锁存后的任务参数)
+    // 到 tile_controller(启动脉冲 + 锁存后的任务参数)
     output reg        start_pulse,
     output reg [`NPU_DIM_W-1:0]  cfg_m, cfg_n, cfg_k,
-    output reg [`NPU_TILE_W-1:0] cfg_tm, cfg_tn,
     output reg [`NPU_TK_W-1:0]   cfg_tk,
     output reg [`NPU_QS_W-1:0]   cfg_qshift,
-    // 来自 npu_ctrl
+    // 来自 tile_controller
     input        core_busy,
     input        core_done,
-    input [`NPU_ERR_W-1:0]  error_code,
     // CPU 侧 RAM 端口(到 npu_buffer)
     output reg        cpu_a_we,  cpu_a_re,
     output reg        cpu_bt_we, cpu_bt_re,
@@ -40,9 +38,7 @@ module npu_top(
     output reg [`NPU_BBUF_AW-1:0] cpu_bt_addr,
     output reg [`NPU_CBUF_AW-1:0] cpu_c_addr,
     output reg [31:0] cpu_a_wdata, cpu_bt_wdata, cpu_c_wdata,
-    input [31:0] a_rdata_cpu, bt_rdata_cpu, c_rdata_cpu,
-    // 状态
-    input        buffer_ready_i
+    input [31:0] a_rdata_cpu, bt_rdata_cpu, c_rdata_cpu
 );
 
     // ---- 内部连线：MMIO 锁存请求 ----
@@ -61,7 +57,6 @@ module npu_top(
 
     // start_ctrl 的锁存参数：任务开始后由 m_l..qs_l 保持到任务结束。
     wire [`NPU_DIM_W-1:0]  m_l, n_l, k_l;
-    wire [`NPU_TILE_W-1:0] tm_l, tn_l;
     wire [`NPU_TK_W-1:0]   tk_l;
     wire [`NPU_QS_W-1:0]   qs_l;
     wire        busy_status, done_status;
@@ -105,7 +100,6 @@ module npu_top(
 
     // control_regs 的实时配置值，仅供 start_ctrl 在启动瞬间采样。
     wire [`NPU_DIM_W-1:0]  cr_m, cr_n, cr_k;
-    wire [`NPU_TILE_W-1:0] cr_tm, cr_tn;
     wire [`NPU_TK_W-1:0]   cr_tk;
     wire [`NPU_QS_W-1:0]   cr_qs;
 
@@ -116,30 +110,30 @@ module npu_top(
         .ctrl_reg_off(ctrl_reg_off), .req_wdata(req_wdata),
         .req_byte_en(req_byte_en),
         .cfg_m(cr_m), .cfg_n(cr_n), .cfg_k(cr_k),
-        .cfg_tm(cr_tm), .cfg_tn(cr_tn), .cfg_tk(cr_tk), .cfg_qshift(cr_qs),
+        .cfg_tk(cr_tk), .cfg_qshift(cr_qs),
         .start_req(start_req), .clear_done_req(clear_done_req),
         .control_rdata(control_rdata)
     );
 
     // ---- 状态寄存器读数据 ----
     assign status_rdata = (ctrl_reg_off == 3'd0) ?
-        {28'd0, buffer_ready_i, (error_code != `NPU_ERR_NONE), done_status, busy_status} :
-        {24'd0, error_code};
+        {28'd0, !core_busy, 1'b0, done_status, busy_status} :
+        32'd0;
 
     // ---- start_ctrl ----
     start_ctrl u_start_ctrl(
         .clk(clk), .rst(rst),
         .start_req(start_req), .clear_done_req(clear_done_req),
         .cfg_m(cr_m), .cfg_n(cr_n), .cfg_k(cr_k),
-        .cfg_tm(cr_tm), .cfg_tn(cr_tn), .cfg_tk(cr_tk), .cfg_qshift(cr_qs),
+        .cfg_tk(cr_tk), .cfg_qshift(cr_qs),
         .core_done_i(core_done),
         .start_pulse(start_pulse_w),
-        .m_l(m_l), .n_l(n_l), .k_l(k_l), .tm_l(tm_l), .tn_l(tn_l),
+        .m_l(m_l), .n_l(n_l), .k_l(k_l),
         .tk_l(tk_l), .qs_l(qs_l),
         .busy_status(busy_status), .done_status(done_status)
     );
 
-    // 对 npu_ctrl 输出锁存后的任务参数；运行期间软件改动不影响当前任务。
+    // 对 tile_controller 输出锁存后的任务参数；运行期间软件改动不影响当前任务。
     // ---- buffer_access_ctrl ----
     buffer_access_ctrl u_buffer_access_ctrl(
         .req_valid(req_valid), .req_we(req_we), .req_byte_en(req_byte_en),
@@ -163,8 +157,6 @@ module npu_top(
         cfg_m = m_l;
         cfg_n = n_l;
         cfg_k = k_l;
-        cfg_tm = tm_l;
-        cfg_tn = tn_l;
         cfg_tk = tk_l;
         cfg_qshift = qs_l;
         cpu_a_we = cpu_a_we_w;

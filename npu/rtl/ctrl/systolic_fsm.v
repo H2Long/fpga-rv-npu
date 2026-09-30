@@ -16,10 +16,8 @@ module systolic_fsm(
     input        clk,
     input        rst,
     input        start_pulse,
-    input        cfg_ok,
-    input [`NPU_ERR_W-1:0] chk_err_code,
     input        core_done,          // done_ctrl 已发出 core_done
-    // 边界/调度状态(由 npu_ctrl 内部组合逻辑派生)
+    // 边界/调度状态(由 tile_controller 内部组合逻辑派生)
     input        first_k_tile,
     input        last_k_tile,
     input        last_output_tile,
@@ -28,8 +26,8 @@ module systolic_fsm(
     input [`NPU_FIFO_AW:0] a_fifo_count, bt_fifo_count,
     // 喂数节拍(pair_stream_ctrl)
     input        pair_fire,
-    // MAC 状态(collect_done 直接作为 array_done)
-    input        array_done,
+    // MAC 状态：16 个结果已经全部收集
+    input        collect_done,
     // C 写回状态(c_tile_write_ctrl)
     input        write_done,
     // 输出
@@ -43,8 +41,6 @@ module systolic_fsm(
     output reg         drain_en,
     output reg         write_go,
     output reg        fsm_done,
-    output reg         err_abort,
-    output reg  [`NPU_ERR_W-1:0] error_code,
     output reg        core_busy
 );
 
@@ -83,32 +79,16 @@ module systolic_fsm(
             sched_init <= 1'b0; next_k_req <= 1'b0; next_out_req <= 1'b0;
             acc_tile_clear <= 1'b0; prefetch_go <= 1'b0;
             ph_array_start <= 1'b0; feed_go <= 1'b0; drain_en <= 1'b0;
-            write_go <= 1'b0; err_abort <= 1'b0;
-            error_code <= `NPU_ERR_NONE;
+            write_go <= 1'b0;
             feed_cnt <= 6'd0;
         end else begin
             // 默认单拍信号清零；电平信号在各状态分支中显式拉高。
             sched_init <= 1'b0; next_k_req <= 1'b0; next_out_req <= 1'b0;
             acc_tile_clear <= 1'b0; ph_array_start <= 1'b0;
-            err_abort <= 1'b0;
-
             case (state)
                 S_IDLE: begin
-                    if (start_pulse) begin
-                        error_code <= `NPU_ERR_NONE;
-                        state <= S_CHECK_CONFIG;
-                    end
-                end
-
-                S_CHECK_CONFIG: begin
-                    // 配置错误不进入数据通路，直接记录错误码并结束任务。
-                    if (!cfg_ok) begin
-                        error_code <= chk_err_code;
-                        err_abort  <= 1'b1;
-                        state      <= S_DONE;
-                    end else begin
+                    if (start_pulse)
                         state <= S_LOAD_TILE_PARAM;
-                    end
                 end
 
                 S_LOAD_TILE_PARAM: begin
@@ -153,11 +133,11 @@ module systolic_fsm(
                     end
                 end
 
-                // 阵列继续 enable，让最后的波前穿过 PE；array_done 表示结果流已收完。
+                // 阵列继续 enable，让最后的波前穿过 PE；collect_done 表示结果流已收完。
                 S_ARRAY_DRAIN: begin
                     // 停止新输入但保持阵列推进，让最后一组波前抵达远端 PE。
                     drain_en <= 1'b1;           // 阵列继续推进 + 排空(P+Q-2 拍)
-                    if (array_done) begin       // 16 个结果已串行流出
+                    if (collect_done) begin     // 16 个结果已串行流出
                         drain_en <= 1'b0;
                         state <= S_RECEIVE_RESULT;
                     end

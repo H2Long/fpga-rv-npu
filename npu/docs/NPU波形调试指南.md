@@ -49,7 +49,7 @@ VCD 的顶层实例为：
 ```text
 tb_npu.dut
 ├── u_npu_top
-├── u_npu_ctrl
+├── u_tile_controller
 ├── u_npu_buffer
 └── u_npu_mac
 ```
@@ -60,11 +60,11 @@ tb_npu.dut
 tb_npu.dut.u_npu_top.u_mmio_if
 tb_npu.dut.u_npu_top.u_control_regs
 tb_npu.dut.u_npu_top.u_start_ctrl
-tb_npu.dut.u_npu_ctrl.u_systolic_fsm
-tb_npu.dut.u_npu_ctrl.u_tile_scheduler
-tb_npu.dut.u_npu_ctrl.u_c_tile_acc_ctrl
-tb_npu.dut.u_npu_ctrl.u_c_tile_write_ctrl
-tb_npu.dut.u_npu_ctrl.u_done_ctrl
+tb_npu.dut.u_tile_controller.u_systolic_fsm
+tb_npu.dut.u_tile_controller.u_tile_scheduler
+tb_npu.dut.u_tile_controller.u_c_tile_acc_ctrl
+tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl
+tb_npu.dut.u_tile_controller.u_done_ctrl
 tb_npu.dut.u_npu_buffer.u_a_buffer.mem
 tb_npu.dut.u_npu_buffer.u_bt_buffer.mem
 tb_npu.dut.u_npu_buffer.u_c_buffer.mem
@@ -103,14 +103,13 @@ tb_npu.dut.cpu_rdata
 tb_npu.dut.start_pulse
 tb_npu.dut.core_busy
 tb_npu.dut.core_done
-tb_npu.dut.error_code
-tb_npu.dut.u_npu_ctrl.u_systolic_fsm.state
-tb_npu.dut.u_npu_ctrl.tile_i
-tb_npu.dut.u_npu_ctrl.tile_j
-tb_npu.dut.u_npu_ctrl.tile_k
-tb_npu.dut.u_npu_ctrl.valid_tm
-tb_npu.dut.u_npu_ctrl.valid_tn
-tb_npu.dut.u_npu_ctrl.valid_tk
+tb_npu.dut.u_tile_controller.u_systolic_fsm.state
+tb_npu.dut.u_tile_controller.tile_i
+tb_npu.dut.u_tile_controller.tile_j
+tb_npu.dut.u_tile_controller.tile_k
+tb_npu.dut.u_tile_controller.valid_tm
+tb_npu.dut.u_tile_controller.valid_tn
+tb_npu.dut.u_tile_controller.valid_tk
 ```
 
 ### 3.3 A/BT 预取
@@ -122,7 +121,6 @@ tb_npu.dut.u_npu_buffer.a_ram_raddr
 tb_npu.dut.u_npu_buffer.a_ram_re
 tb_npu.dut.u_npu_buffer.a_ram_rdata
 tb_npu.dut.u_npu_buffer.a_fifo_push
-tb_npu.dut.u_npu_buffer.a_fifo_valid
 tb_npu.dut.u_npu_buffer.a_fifo_count
 tb_npu.dut.u_npu_buffer.a_fifo_pop
 tb_npu.dut.npu_bt_addr
@@ -131,7 +129,6 @@ tb_npu.dut.u_npu_buffer.bt_ram_raddr
 tb_npu.dut.u_npu_buffer.bt_ram_re
 tb_npu.dut.u_npu_buffer.bt_ram_rdata
 tb_npu.dut.u_npu_buffer.bt_fifo_push
-tb_npu.dut.u_npu_buffer.bt_fifo_valid
 tb_npu.dut.u_npu_buffer.bt_fifo_count
 tb_npu.dut.u_npu_buffer.bt_fifo_pop
 ```
@@ -139,17 +136,13 @@ tb_npu.dut.u_npu_buffer.bt_fifo_pop
 ### 3.4 MAC 输入和握手
 
 ```text
-tb_npu.dut.a_stream_valid
+tb_npu.dut.stream_valid
 tb_npu.dut.a_stream_data
-tb_npu.dut.bt_stream_valid
 tb_npu.dut.bt_stream_data
-tb_npu.dut.a_stream_ready
-tb_npu.dut.bt_stream_ready
-tb_npu.dut.u_npu_ctrl.pair_fire
+tb_npu.dut.u_tile_controller.pair_fire
 tb_npu.dut.array_start
 tb_npu.dut.array_enable
-tb_npu.dut.array_clear_acc
-tb_npu.dut.array_flush
+tb_npu.dut.drain_en
 ```
 
 ### 3.5 PE 和波前
@@ -175,7 +168,7 @@ tb_npu.dut.u_npu_mac.u_tile_result_collector.c_result_valid
 tb_npu.dut.u_npu_mac.u_tile_result_collector.c_result
 tb_npu.dut.u_npu_mac.u_tile_result_collector.c_scan_index
 tb_npu.dut.u_npu_mac.u_tile_result_collector.collect_done
-tb_npu.dut.array_done
+tb_npu.dut.collect_done
 ```
 
 ### 3.7 C 写回和完成
@@ -189,8 +182,8 @@ tb_npu.dut.u_npu_buffer.c_wr_pulse
 tb_npu.dut.u_npu_buffer.cwf_we
 tb_npu.dut.u_npu_buffer.cwf_addr
 tb_npu.dut.u_npu_buffer.cwf_data
-tb_npu.dut.u_npu_ctrl.u_done_ctrl.wr_cnt
-tb_npu.dut.u_npu_ctrl.u_done_ctrl.done_seen
+tb_npu.dut.u_tile_controller.u_done_ctrl.wr_cnt
+tb_npu.dut.u_tile_controller.u_done_ctrl.done_seen
 tb_npu.dut.core_done
 ```
 
@@ -202,7 +195,7 @@ tb_npu.dut.core_done
 
 ```text
 复位释放
-  -> MMIO 写入 M/N/K/TM/TN/TK/qshift
+  -> MMIO 写入 M/N/K/TK/qshift（TM=TN=4 固定）
   -> CTRL.start
   -> start_pulse 单拍
   -> FSM 离开 IDLE
@@ -213,7 +206,7 @@ tb_npu.dut.core_done
   -> feed_go 和 pair_fire
   -> array_start
   -> array_enable
-  -> array_flush/drain
+  -> drain_en
   -> 16 个 C 结果有效
   -> C Tile 累加和量化
   -> C FIFO 写入
@@ -223,7 +216,7 @@ tb_npu.dut.core_done
 
 其中：
 
-- `array_done` 表示当前 K Tile 的 16 个阵列结果已经收集完。
+- `collect_done` 表示当前 K Tile 的 16 个阵列结果已经收集完。
 - `core_done` 表示整个矩阵的有效 C 元素已经写入 C Buffer。
 - 两者不是同一个完成事件。
 
@@ -275,10 +268,8 @@ RAM 读请求和返回数据相差一个时钟周期。`a_fifo_push`/`bt_fifo_pu
 
 ```text
 feed_go = 1
-a_fifo_valid = 1
-bt_fifo_valid = 1
-a_stream_ready = 1
-bt_stream_ready = 1
+a_fifo_count != 0
+bt_fifo_count != 0
 ```
 
 在 `pair_fire=1` 的同一周期，应该看到：
@@ -286,8 +277,7 @@ bt_stream_ready = 1
 ```text
 a_fifo_pop = 1
 bt_fifo_pop = 1
-a_stream_valid = 1
-bt_stream_valid = 1
+stream_valid = 1
 ```
 
 如果两侧 pop 不同步，A 和 BT 的 K 序列已经错位。
@@ -333,15 +323,14 @@ T1 中 K=4，因此有效 PE 最终应完成 4 次乘加。建议先观察 `u_pe
 最后一次 `pair_fire` 之后，正常顺序是：
 
 ```text
-array_flush = 1
+drain_en = 1
 drain_done = 1
 c_result_valid 连续 16 拍
 c_scan_index = 0,1,2,...,15
 collect_done 延后一拍出现
-array_done 随后出现
 ```
 
-如果 `drain_done` 不出现，检查 `array_flush`、`array_enable` 和 drain counter。如果排空完成但结果不完整，检查 collector 的 `state`、`idx` 和 `acc_flat`。
+如果 `drain_done` 不出现，检查 `drain_en`、`array_enable` 和 drain counter。如果排空完成但结果不完整，检查 collector 的 `state`、`idx` 和 `acc_flat`。
 
 ## 11. C 写回检查
 
@@ -374,7 +363,7 @@ T3 的参数为 `M=6,N=7,TM=4,TN=4`，四个输出 Tile 的有效元素数量为
 | `pair_fire` 不出现 | 两侧 FIFO valid、ready、`feed_go` |
 | PE 输入有效但 acc 不变 | PE valid、`clear_acc`、`enable` |
 | PE00 正常而远端 PE 错 | skew 延迟和 PE 阵列连接 |
-| `drain_done` 不出现 | `array_flush`、`array_enable`、排空计数 |
+| `drain_done` 不出现 | `drain_en`、`array_enable`、排空计数 |
 | 16 个结果不完整 | collector state、idx、acc_flat |
 | C 结果正确但 Buffer 错 | quantizer、C 地址、C FIFO |
 | DONE 提前出现 | `c_wr_pulse`、`done_ctrl.wr_cnt` |
@@ -392,23 +381,22 @@ clk rst cpu_valid cpu_we cpu_addr cpu_wdata cpu_ready cpu_rdata
 ### `01_task_control`
 
 ```text
-start_pulse core_busy core_done error_code
+start_pulse core_busy core_done
 systolic_fsm.state tile_i tile_j tile_k valid_tm valid_tn valid_tk
 ```
 
 ### `02_prefetch`
 
 ```text
-npu_a_addr npu_a_re a_fifo_push a_fifo_valid a_fifo_count a_fifo_pop
-npu_bt_addr npu_bt_re bt_fifo_push bt_fifo_valid bt_fifo_count bt_fifo_pop
+npu_a_addr npu_a_re a_fifo_push a_fifo_count a_fifo_pop
+npu_bt_addr npu_bt_re bt_fifo_push bt_fifo_count bt_fifo_pop
 ```
 
 ### `03_mac_input`
 
 ```text
-a_stream_valid a_stream_data bt_stream_valid bt_stream_data
-a_stream_ready bt_stream_ready pair_fire
-array_start array_enable array_clear_acc array_flush
+stream_valid a_stream_data bt_stream_data pair_fire
+array_start array_enable drain_en
 ```
 
 ### `04_pe`
@@ -421,7 +409,7 @@ u_pe00.acc u_pe11.acc u_pe33.acc
 
 ```text
 drain_done c_result_valid c_result c_scan_index
-collect_done array_done cwr_valid cwr_ready cwr_addr cwr_data c_wr_pulse core_done
+collect_done cwr_valid cwr_ready cwr_addr cwr_data c_wr_pulse core_done
 ```
 
 ## 14. 阅读原则
@@ -456,14 +444,13 @@ CPU 启动
 tb_npu.dut.start_pulse
 tb_npu.dut.core_busy
 tb_npu.dut.core_done
-tb_npu.dut.error_code
 
-tb_npu.dut.u_npu_ctrl.u_systolic_fsm.state
-tb_npu.dut.u_npu_ctrl.u_systolic_fsm.prefetch_go
-tb_npu.dut.u_npu_ctrl.u_systolic_fsm.feed_go
-tb_npu.dut.u_npu_ctrl.u_systolic_fsm.pair_fire
-tb_npu.dut.u_npu_ctrl.u_systolic_fsm.drain_en
-tb_npu.dut.u_npu_ctrl.u_systolic_fsm.write_go
+tb_npu.dut.u_tile_controller.u_systolic_fsm.state
+tb_npu.dut.u_tile_controller.u_systolic_fsm.prefetch_go
+tb_npu.dut.u_tile_controller.u_systolic_fsm.feed_go
+tb_npu.dut.u_tile_controller.u_systolic_fsm.pair_fire
+tb_npu.dut.u_tile_controller.u_systolic_fsm.drain_en
+tb_npu.dut.u_tile_controller.u_systolic_fsm.write_go
 
 tb_npu.dut.u_npu_buffer.a_fifo_count
 tb_npu.dut.u_npu_buffer.bt_fifo_count

@@ -1,6 +1,10 @@
 VCD info: dumpfile npu_wave.vcd opened for output.
-==== NPU 简单单 Tile 仿真开始 ====
+==== NPU INT8 GEMM 仿真开始 ====
 [�tile_4x4x4     ] PASS : M=4 N=4 K=4 TM=4 TN=4 TK=4 q=0 | C 写 16 项, 计算耗时 72 周期
-==== 结果: PASS=1 FAIL=0 ====
+[��模_16x16x16  ] PASS : M=16 N=16 K=16 TM=4 TN=4 TK=4 q=0 | C 写 256 项, 计算耗时 3032 周期
+[界_6x7x9       ] PASS : M=6 N=7 K=9 TM=4 TN=4 TK=3 q=0 | C 写 42 项, 计算耗时 572 周期
+[界_5x5x6       ] PASS : M=5 N=5 K=6 TM=4 TN=4 TK=3 q=0 | C 写 25 项, 计算耗时 412 周期
+[化_8x8x8_q2    ] PASS : M=8 N=8 K=8 TM=4 TN=4 TK=8 q=2 | C 写 64 项, 计算耗时 292 周期
+==== 结果: PASS=5 FAIL=0 ====
 ALL TESTS PASSED
-/home/hhlong/code/fpga-calss-design/npu/tb/tb_npu.v:264: $finish called at 2230000 (1ps)
+/home/hhlong/code/fpga-calss-design/npu/tb/tb_npu.v:225: $finish called at 74340000 (1ps)

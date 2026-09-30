@@ -25,7 +25,6 @@
 `define NPU_TILE_W 3           // TM/TN (1..4)
 `define NPU_TK_W 5             // TK (1..16)
 `define NPU_QS_W 5             // 量化右移位数
-`define NPU_ERR_W 8            // 错误码
 `define NPU_TIDX_W 6           // tile 计数器位宽,支持 M/N=63 且 TM/TN=1
 `define NPU_CBASE_W 9          // C 元素基地址中间位宽
 
@@ -35,12 +34,5 @@
 `define NPU_ADDR_ABUF_BASE 32'h0000_1000  // 0x1000-0x10FF A Buffer
 `define NPU_ADDR_BBUF_BASE 32'h0000_2000  // 0x2000-0x20FF BT Buffer
 `define NPU_ADDR_CBUF_BASE 32'h0000_3000  // 0x3000-0x33FF C Buffer
-
-// 错误码
-`define NPU_ERR_NONE 8'd0
-`define NPU_ERR_DIM_ZERO 8'd1   // M/N/K 为 0
-`define NPU_ERR_TILE_GT_ARRAY 8'd2 // TM>P 或 TN>Q
-`define NPU_ERR_BUF_OVERFLOW 8'd3  // 矩阵超出 Buffer 容量
-`define NPU_ERR_TK_INVALID 8'd4    // TK==0 或 TK>K 或 TK>16
 
 `endif

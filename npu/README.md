@@ -28,7 +28,7 @@ npu/
 
 - 4x4 INT8 输出驻留式脉动阵列
 - A/BT/C 片上 Buffer 和预取/写回 FIFO
-- M/N/K、TM/TN/TK、量化右移配置
+- M/N/K、TK、量化右移配置，TM=TN=4 固定
 - Tile 调度、边界补零、K 方向部分和累加
 - MMIO 启动、状态查询、错误码和 C Buffer 读取
 
@@ -41,7 +41,7 @@ python3 scripts/run_npu.py
 python3 scripts/run_npu.py --simple
 ```
 
-当前测试台覆盖单 Tile、多 Tile、多 K Tile、非整除边界、小 Tile、负数量化以及五条错误路径，共 10 项测试，预期结果为 `PASS=10 FAIL=0`。
+当前测试台覆盖单 Tile、多 Tile、多 K Tile、非整除边界和负数量化，共 5 项测试，预期结果为 `PASS=5 FAIL=0`。
 
 `--simple` 模式只运行 T1 单 Tile，用于快速查看一次完整数据流；波形另存为 `sim/waves/npu_wave_simple.vcd`。
 

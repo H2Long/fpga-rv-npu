@@ -3,7 +3,7 @@
 //
 // c_wr_pulse 是 C RAM 的实际写脉冲，而不是 FIFO 入队脉冲。
 // 只有 FSM 已经到达 DONE 且 wr_cnt_next >= M*N 时，才产生一个周期的 core_done。
-// 配置错误由 err_abort 直接结束任务；done_seen 防止同一任务重复发出完成脉冲。
+// done_seen 防止同一任务重复发出完成脉冲。
 `include "npu_defines.vh"
 
 module done_ctrl(
@@ -13,7 +13,6 @@ module done_ctrl(
     input [`NPU_DIM_W-1:0] lp_m, lp_n,
     input        c_wr_pulse,          // c_write_fifo -> C RAM 实际写入脉冲
     input        fsm_done,            // systolic_fsm 已到 DONE
-    input        err_abort,           // 配置错误中止
     output reg         core_done
 );
 
@@ -28,8 +27,7 @@ module done_ctrl(
 
     always @(*) begin
         wr_cnt_next = wr_cnt + {{(TOTAL_W-1){1'b0}}, c_wr_pulse};
-        fire = !done_seen &&
-               ((fsm_done && (wr_cnt_next >= total)) || err_abort);
+        fire = !done_seen && fsm_done && (wr_cnt_next >= total);
     end
 
     always @(posedge clk) begin

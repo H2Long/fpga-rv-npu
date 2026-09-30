@@ -6,8 +6,6 @@
 //   0x04 M     矩阵行数
 //   0x08 N     矩阵列数
 //   0x0C K     内积长度
-//   0x10 TM    M 方向 Tile 大小
-//   0x14 TN    N 方向 Tile 大小
 //   0x18 TK    K 方向 Tile 大小
 //   0x1C QUANT 量化右移位数
 // CTRL 是命令寄存器，不保存 bit0/bit1；例如写 0x02 只产生 clear_done_req，
@@ -26,8 +24,6 @@ module control_regs(
     output reg  [`NPU_DIM_W-1:0]  cfg_m,
     output reg  [`NPU_DIM_W-1:0]  cfg_n,
     output reg  [`NPU_DIM_W-1:0]  cfg_k,
-    output reg  [`NPU_TILE_W-1:0] cfg_tm,
-    output reg  [`NPU_TILE_W-1:0] cfg_tn,
     output reg  [`NPU_TK_W-1:0]   cfg_tk,
     output reg  [`NPU_QS_W-1:0]   cfg_qshift,
     output reg        start_req,        // 单拍
@@ -53,14 +49,12 @@ module control_regs(
     always @(posedge clk) begin
         if (rst) begin
             cfg_m <= 6'd4;  cfg_n <= 6'd4;  cfg_k <= 6'd4;
-            cfg_tm <= 3'd4; cfg_tn <= 3'd4; cfg_tk <= 5'd4; cfg_qshift <= 5'd0;
+            cfg_tk <= 5'd4; cfg_qshift <= 5'd0;
         end else if (byte0_wr) begin
             case (ctrl_reg_off)
                 3'd1: cfg_m     <= req_wdata[`NPU_DIM_W-1:0];
                 3'd2: cfg_n     <= req_wdata[`NPU_DIM_W-1:0];
                 3'd3: cfg_k     <= req_wdata[`NPU_DIM_W-1:0];
-                3'd4: cfg_tm    <= req_wdata[`NPU_TILE_W-1:0];
-                3'd5: cfg_tn    <= req_wdata[`NPU_TILE_W-1:0];
                 3'd6: cfg_tk    <= req_wdata[`NPU_TK_W-1:0];
                 3'd7: cfg_qshift<= req_wdata[`NPU_QS_W-1:0];
                 default: ;      // 0x00 CTRL 只有命令位,不保存
@@ -76,10 +70,9 @@ module control_regs(
             (ctrl_reg_off == 3'd1) ? {26'd0, cfg_m}            :
             (ctrl_reg_off == 3'd2) ? {26'd0, cfg_n}            :
             (ctrl_reg_off == 3'd3) ? {26'd0, cfg_k}            :
-            (ctrl_reg_off == 3'd4) ? {29'd0, cfg_tm}           :
-            (ctrl_reg_off == 3'd5) ? {29'd0, cfg_tn}           :
             (ctrl_reg_off == 3'd6) ? {27'd0, cfg_tk}           :
-                                     {27'd0, cfg_qshift}       ;
+            (ctrl_reg_off == 3'd7) ? {27'd0, cfg_qshift}       :
+                                     32'd0                     ;
     end
 
 endmodule

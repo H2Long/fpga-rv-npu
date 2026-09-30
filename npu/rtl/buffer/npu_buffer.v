@@ -22,29 +22,25 @@ module npu_buffer(
     input        cpu_c_we,  cpu_c_re,
     input [`NPU_CBUF_AW-1:0] cpu_c_addr,
     input [31:0] cpu_c_wdata,
-    // NPU 读请求(来自 npu_ctrl)
+    // NPU 读请求(来自 tile_controller)
     input [`NPU_ABUF_AW-1:0] npu_a_addr,
     input        npu_a_re,
     input [`NPU_BBUF_AW-1:0] npu_bt_addr,
     input        npu_bt_re,
     // CPU 读数据返回
     output reg [31:0] a_rdata_cpu, bt_rdata_cpu, c_rdata_cpu,
-    // 预取 FIFO 接口(到 npu_ctrl)
-    output reg        a_fifo_valid,
+    // 预取 FIFO 接口(到 tile_controller)
     output reg [31:0] a_fifo_rdata,
     output reg [`NPU_FIFO_AW:0] a_fifo_count,
     input        a_fifo_pop,
-    output reg        bt_fifo_valid,
     output reg [31:0] bt_fifo_rdata,
     output reg [`NPU_FIFO_AW:0] bt_fifo_count,
     input        bt_fifo_pop,
-    // C 写回(来自 npu_ctrl.c_tile_write_ctrl)
+    // C 写回(来自 tile_controller.c_tile_write_ctrl)
     input        cwr_valid,
     input [`NPU_CBUF_AW-1:0] cwr_addr,
     input [31:0] cwr_data,
-    output reg        cwr_ready, cwr_empty, c_wr_pulse,
-    // 状态
-    output reg        buffer_ready
+    output reg        cwr_ready, cwr_empty, c_wr_pulse
 );
 
     // A/BT 在运行期间由 NPU 读，空闲期间由 CPU 读写。
@@ -95,7 +91,6 @@ module npu_buffer(
     // ---- NPU 读端口控制:同步读返回 -> FIFO ----
     wire a_fifo_push, bt_fifo_push;
     wire [31:0] a_fifo_rdata_w, bt_fifo_rdata_w;
-    wire a_fifo_valid_w, bt_fifo_valid_w;
     wire [`NPU_FIFO_AW:0] a_fifo_count_w, bt_fifo_count_w;
     wire cwr_ready_w, cwr_empty_w, c_wr_pulse_w;
 
@@ -117,14 +112,14 @@ module npu_buffer(
     npu_sync_fifo #(.AW(`NPU_FIFO_AW), .DW(32)) u_a_prefetch_fifo(
         .clk(clk), .rst(rst),
         .push(a_fifo_push), .wdata(a_ram_rdata), .pop(a_fifo_pop),
-        .rdata(a_fifo_rdata_w), .valid(a_fifo_valid_w), .empty(), .full(),
+        .rdata(a_fifo_rdata_w), .valid(), .empty(), .full(),
         .count(a_fifo_count_w)
     );
 
     npu_sync_fifo #(.AW(`NPU_FIFO_AW), .DW(32)) u_bt_prefetch_fifo(
         .clk(clk), .rst(rst),
         .push(bt_fifo_push), .wdata(bt_ram_rdata), .pop(bt_fifo_pop),
-        .rdata(bt_fifo_rdata_w), .valid(bt_fifo_valid_w), .empty(), .full(),
+        .rdata(bt_fifo_rdata_w), .valid(), .empty(), .full(),
         .count(bt_fifo_count_w)
     );
 
@@ -143,16 +138,12 @@ module npu_buffer(
         bt_rdata_cpu = bt_ram_rdata;
         c_rdata_cpu = c_ram_rdata;
         a_fifo_rdata = a_fifo_rdata_w;
-        a_fifo_valid = a_fifo_valid_w;
         a_fifo_count = a_fifo_count_w;
         bt_fifo_rdata = bt_fifo_rdata_w;
-        bt_fifo_valid = bt_fifo_valid_w;
         bt_fifo_count = bt_fifo_count_w;
         cwr_ready = cwr_ready_w;
         cwr_empty = cwr_empty_w;
         c_wr_pulse = c_wr_pulse_w;
-        // Buffer 在 NPU 空闲时可供 CPU 访问，运行期间由 NPU 独占。
-        buffer_ready = !core_busy;
     end
 
 endmodule

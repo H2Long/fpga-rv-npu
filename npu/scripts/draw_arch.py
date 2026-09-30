@@ -17,7 +17,7 @@ os.makedirs(OUT, exist_ok=True)
 
 # ---------- 配色 ----------
 C_TOP_BG,  C_TOP_BD  = "#EAF3FB", "#6E9CC5"   # npu_top 浅蓝
-C_CTRL_BG, C_CTRL_BD = "#FFF8E4", "#B8964B"   # npu_ctrl 浅黄
+C_CTRL_BG, C_CTRL_BD = "#FFF8E4", "#B8964B"   # tile_controller 浅黄
 C_BUF_BG,  C_BUF_BD  = "#EAF7EC", "#6FAF8B"   # npu_buffer 浅绿
 C_MAC_BG,  C_MAC_BD  = "#F3EEFB", "#8F78BC"   # npu_mac 浅紫
 C_CTRL = "#C0392B"   # 控制红
@@ -76,12 +76,12 @@ def wlabel(x, y, text, color, fs=7.0, ha="center"):
 # ---------- 标题 ----------
 ax.text(W/2, -3.0, "NPU 矩阵乘法加速器总体架构", fontsize=22, weight="bold",
         ha="center", color=C_TXT)
-ax.text(W/2, -0.4, "C[M][N] = A[M][K] × BT[N][K]   ·   INT8 输入 / 32 位累加   ·   4×4 脉动阵列   ·   46 个 RTL 文件(npu_top/npu_ctrl/npu_buffer/npu_mac + support)",
+ax.text(W/2, -0.4, "C[M][N] = A[M][K] × BT[N][K]   ·   INT8 输入 / 32 位累加   ·   4×4 脉动阵列   ·   26 个 RTL 文件(npu_top/tile_controller/npu_buffer/npu_mac + support)",
         fontsize=10, ha="center", color="#57606A")
 
 # ---------- 区域 ----------
 region(2, 3, 96, 18.5, C_TOP_BG,  C_TOP_BD,  "npu_top  —  CPU 控制平面", "MMIO · 寄存器 · 启动 · 访问仲裁")
-region(2, 22.5, 57, 34.5, C_CTRL_BG, C_CTRL_BD, "npu_ctrl  —  调度与时序控制平面", "tile 调度 · 地址生成 · systolic_fsm · C 写回")
+region(2, 22.5, 57, 34.5, C_CTRL_BG, C_CTRL_BD, "tile_controller  —  调度与时序控制平面", "Tile 调度 · 地址生成 · systolic_fsm · C 写回")
 region(61, 22.5, 37, 34.5, C_BUF_BG, C_BUF_BD, "npu_buffer  —  存储平面", "A/BT/C RAM · 预取/写 FIFO")
 region(2, 58.5, 96, 17.0, C_MAC_BG, C_MAC_BD, "npu_mac  —  计算平面", "拆包 · 波前对齐 · PE 阵列 · 排空 · 收集")
 
@@ -94,18 +94,18 @@ box(13,   6.4, BW, BH, "mmio_if",           "MMIO 总线入口", C_TOP_BD)
 box(28.5, 6.4, BW, BH, "npu_top.decode",     "地址译码", C_TOP_BD, fs=8.0)
 box(44,   6.4, BW, BH, "control_regs",      "配置寄存器", C_TOP_BD)
 box(59.5, 6.4, BW, BH, "start_ctrl",        "任务生命周期", C_TOP_BD)
-box(28.5, 14.2, BW, BH, "npu_top.status",   "BUSY/DONE/ERROR", C_TOP_BD, fs=8.0)
+box(28.5, 14.2, BW, BH, "npu_top.status",   "BUSY/DONE", C_TOP_BD, fs=8.0)
 box(44,   14.2, BW, BH, "buffer_access_ctrl", "仲裁/字节屏蔽/RAM端口", C_TOP_BD, fs=7.2)
 ax.text(76.5, 8.9, "MMIO 映射\n0x0000  控制寄存器\n0x0020  状态寄存器\n0x1000  A Buffer\n0x2000  BT Buffer\n0x3000  C Buffer",
         fontsize=8.5, color="#3D648C", va="center", ha="left", zorder=4, linespacing=1.55,
         bbox=dict(boxstyle="round,pad=0.55", fc="white", ec=C_TOP_BD, lw=1.1))
 
-# ---------- npu_ctrl 模块 ----------
+# ---------- tile_controller 模块 ----------
 CBW = 13.5
-box(4,   25.5, CBW, BH + 1.1, "npu_ctrl.config", "参数检查/快照复用", C_CTRL_BD, fs=7.0)
-box(4,   32.3, CBW, BH, "npu_ctrl.bounds",   "边界尺寸派生", C_CTRL_BD, fs=7.8)
+box(4,   25.5, CBW, BH + 1.1, "tile_controller.config", "参数快照复用", C_CTRL_BD, fs=7.0)
+box(4,   32.3, CBW, BH, "tile_controller.bounds",   "边界尺寸派生", C_CTRL_BD, fs=7.8)
 box(4,   39.1, CBW, BH, "tile_scheduler",   "i/j/k 三层循环", C_CTRL_BD, fs=8.2)
-box(4,   45.9, CBW, BH + 1.1, "npu_ctrl.addr", "A/BT/C 基地址", C_CTRL_BD, fs=7.0)
+box(4,   45.9, CBW, BH + 1.1, "tile_controller.addr", "A/BT/C 基地址", C_CTRL_BD, fs=7.0)
 box(20.5, 25.5, CBW, BH, "npu_stream_ctrl",  "A/BT 共用读流", C_CTRL_BD, fs=8.0)
 box(20.5, 32.3, CBW, 10.2, "systolic_fsm",  "13 态主状态机\n预取→喂数→排空→收→写", C_CTRL_BD, fs=9.8)
 ax.add_patch(FancyBboxPatch((20.5, 32.3), CBW, 10.2,
@@ -150,7 +150,7 @@ ax.text(px + pw/2, py + ph - 0.8, "acc[r][c] += A[r][k]×BT[c][k]",
 box(63, 61.6, 13.5, BH, "drain_controller", "排空 P+Q-2=6 拍", C_MAC_BD, fs=7.4)
 box(63, 68.6, 13.5, BH, "tile_result_collector", "16 结果串行输出", C_MAC_BD, fs=6.4)
 box(79.5, 68.6, 13.5, BH, "collector index", "扫描下标直出", C_MAC_BD, fs=7.5)
-box(79.5, 61.6, 13.5, BH, "collect_done",    "直接作为 array_done", C_MAC_BD, fs=7.0)
+box(79.5, 61.6, 13.5, BH, "collect_done",    "结果完成脉冲", C_MAC_BD, fs=7.0)
 
 # ================= 连线(按接线总表 §7) =================
 # --- CPU <-> mmio_if ---
@@ -169,10 +169,10 @@ wire([(50.2, 16.5), (50.2, 19.2)], C_STAT, arrow=False)
 wlabel(53.2, 20.0, "寄存器/Buffer 读数据 → mmio_if", C_STAT, fs=6.6, ha="left")
 wire([(71.0, 16.5), (71.0, 19.6), (97.6, 19.6), (97.6, 27.8), (95.5, 27.8)], C_CTRL)
 wlabel(85.0, 18.8, "CPU RAM 端口(core_busy=0 时放行)", C_CTRL, fs=6.8)
-# --- start_ctrl -> npu_ctrl ---
+# --- start_ctrl -> tile_controller ---
 wire([(63.5, 11.0), (63.5, 23.7), (10.7, 23.7), (10.7, 25.5)], C_CTRL, lw=1.8)
-wlabel(37.5, 23.0, "start_pulse + M/N/K/TM/TN/TK/QUANT(锁存)", C_CTRL, fs=7.2)
-# --- npu_ctrl 内部(红) ---
+wlabel(37.5, 23.0, "start_pulse + M/N/K/TK/QUANT(锁存)", C_CTRL, fs=7.2)
+# --- tile_controller 内部(红) ---
 wire([(10.7, 31.2), (10.7, 32.3)], C_CTRL)                          # latch->checker
 wire([(4.0, 28.1), (2.7, 28.1), (2.7, 41.4), (4.0, 41.4)], C_CTRL)  # latch->scheduler
 wire([(17.5, 27.8), (20.5, 27.8)], C_CTRL)                          # latch->addr_gen
@@ -187,7 +187,7 @@ wire([(31.9, 39.4), (31.9, 43.4), (43.7, 43.4), (43.7, 45.9)], C_CTRL)  # fsm->�
 wire([(27.2, 42.5), (27.2, 45.9)], C_CTRL)                          # fsm->c_tile_acc
 wire([(29.9, 42.5), (29.9, 52.3), (29.9, 52.3), (30.5, 52.3)], C_CTRL, alpha=0)  # 占位
 wire([(20.5, 33.9), (18.9, 33.9), (18.9, 54.3), (20.5, 54.3)], C_CTRL)  # fsm->done_ctrl
-# --- npu_ctrl 内部地址生成三色输出 ---
+# --- tile_controller 内部地址生成三色输出 ---
 wire([(34.0, 27.8), (37.0, 27.8)], C_A)                             # -> a_stream
 wlabel(35.5, 26.8, "A 基地址", C_A, fs=6.2)
 wire([(27.2, 30.1), (27.2, 34.6), (37.0, 34.6)], C_BT)              # -> bt_stream
@@ -222,7 +222,7 @@ wire([(43.7, 41.4), (43.7, 56.6), (12.7, 56.6), (12.7, 61.6)], C_A)
 wlabel(26.5, 55.8, "A 数据对(1 字 = 4 行 × 同一 k)", C_A, fs=6.6)
 wire([(44.6, 41.4), (44.6, 57.4), (12.7, 57.4), (12.7, 58.6), (12.7, 68.6)], C_BT)
 wlabel(26.5, 58.2, "BT 数据对(与 A 同拍成对推进)", C_BT, fs=6.6)
-# npu_ctrl 阶段译码 -> mac
+# tile_controller 阶段译码 -> mac
 wire([(43.7, 50.5), (43.7, 60.2)], C_CTRL)
 wire([(43.7, 60.2), (43.7, 59.8), (30.2, 59.8), (30.2, 61.6)], C_CTRL, ls=(0, (3, 2)))
 wire([(69.7, 61.6), (69.7, 59.8), (50.7, 59.8), (50.7, 61.6)], C_CTRL, ls=(0, (3, 2)))
@@ -240,12 +240,12 @@ wire([(86.2, 68.6), (86.2, 53.6), (59.5, 53.6), (59.5, 48.2), (34.0, 48.2)], C_C
 wlabel(73.5, 52.7, "c_result / index / valid / last", C_C, fs=6.8)
 # collect_done -> systolic_fsm
 wire([(86.2, 61.6), (86.2, 59.2), (46.4, 59.2), (46.4, 40.6), (34.0, 40.6)], C_STAT, ls=(0, (3, 2)))
-wlabel(66.5, 58.4, "array_done", C_STAT, fs=6.6)
+wlabel(66.5, 58.4, "collect_done", C_STAT, fs=6.6)
 # --- 状态回传 ---
 wire([(10.7, 52.0), (10.7, 21.0), (62.1, 21.0), (62.1, 11.0)], C_STAT)
 wlabel(36.5, 20.3, "core_done", C_STAT, fs=7.2)
 wire([(4.0, 34.6), (2.7, 34.6), (2.7, 16.5), (28.5, 16.5)], C_STAT, ls=(0, (3, 2)))
-wlabel(9.0, 17.3, "error_code", C_STAT, fs=6.2)
+wlabel(9.0, 17.3, "status", C_STAT, fs=6.2)
 
 # ---------- 图例 ----------
 lx, ly = 3.5, 72.6
@@ -259,7 +259,7 @@ for i, (c, t) in enumerate(items):
     ax.plot([cx, cx + 2.0], [cy, cy], color=c, lw=2.2, zorder=6)
     ax.text(cx + 2.6, cy, t, fontsize=7.8, va="center", color=C_TXT, zorder=6)
 ax.text(lx + 43.0, ly - 0.3,
-        "底色:浅蓝 npu_top · 浅黄 npu_ctrl · 浅绿 npu_buffer · 浅紫 npu_mac\n"
+        "底色:浅蓝 npu_top · 浅黄 tile_controller · 浅绿 npu_buffer · 浅紫 npu_mac\n"
         "通用底层模块:pe_cell · npu_ram · npu_sync_fifo · npu_stream_ctrl(被复用)\n"
         "RTL 全部通过 10 项仿真测试(Icarus Verilog 13, 含多 tile 累加/边界补零/量化/错误路径)",
         fontsize=7.8, va="top", color="#57606A", zorder=6, linespacing=1.6)
