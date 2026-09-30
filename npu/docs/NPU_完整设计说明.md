@@ -8,7 +8,7 @@
 
 - 4×4 输出驻留式脉动阵列(P=Q=4),PE 累加器 32 位
 - A/BT Buffer 64×32 bit,C Buffer 256×32 bit(一个 32 位字存一个 C 元素)
-- 三层 tile 循环(tile_i/tile_j/tile_k),TM/TN ≤ 4,TK ≤ min(K, 32)
+- 三层 tile 循环(tile_i/tile_j/tile_k),TM/TN ≤ 4,TK ≤ min(K, 16)
 - 边界 tile 越界行/列在 unpacker 侧补零,越界 k 不读取,越界 C 项不写回
 - K 方向部分和在 `c_tile_acc_ctrl` 中累加;最后经舍入/饱和量化写入 C Buffer
 - CPU 通过 MMIO 配置、启动、查询状态、装载/读取 Buffer;运行期间(core_busy=1)CPU 端口被封锁
@@ -33,7 +33,7 @@ npu/
 └── figures/                 三张 PNG + SVG
 ```
 
-通用底层模块(被功能模块复用,不计入 45 个):`pe_cell`、`npu_ram`、`npu_sync_fifo`、`npu_stream_ctrl`。
+45 个 RTL 文件包含系统顶层、功能模块和通用基元；另有公共宏头文件 `npu_defines.vh`。
 
 ## 3. MMIO 寄存器
 
@@ -45,7 +45,7 @@ npu/
 | `0x000C` | `K_CFG` | K,6 位 |
 | `0x0010` | `TM_CFG` | 行 tile 尺寸,1..4 |
 | `0x0014` | `TN_CFG` | 列 tile 尺寸,1..4 |
-| `0x0018` | `TK_CFG` | K 方向 tile 尺寸,1..min(K,32) |
+| `0x0018` | `TK_CFG` | K 方向 tile 尺寸,1..min(K,16) |
 | `0x001C` | `QUANT_CFG` | 结果右移位数(0=直通) |
 | `0x0020` | `STATUS` | bit0 BUSY / bit1 DONE / bit2 ERROR / bit3 BUFFER_READY |
 | `0x0024` | `ERR_CODE` | 1=维度为 0,2=tile 超出阵列,3=超 Buffer 容量,4=TK 非法 |
@@ -77,7 +77,7 @@ tile 基地址:`A 字基址 = tile_i*K + tile_k*TK`,`BT 字基址 = tile_j*K + t
 3. `ARRAY_FEED`:`pair_stream_ctrl` 每拍弹出 A/BT 各一字,成对送入(任一侧无效即等待)
 4. skew 管线:行 r 延迟 r 拍、列 c 延迟 c 拍 ⇒ A[r][k] 与 BT[c][k] 恰在 PE[r][c] 同拍相遇
 5. `ARRAY_DRAIN`:继续推进 P+Q-2 = 6 个使能拍,波前走完最远端
-6. 结果收集:16 拍串行输出 `acc[idx]/index/valid/last`,由 `c_tile_acc_ctrl` 装入或累加
+6. 结果收集:16 拍串行输出 `c_result/c_scan_index/c_result_valid`，随后产生 `collect_done`，由 `c_tile_acc_ctrl` 装入或累加
 7. 最后一个 K tile 完成后:量化(舍入右移 + 饱和)→ 逐项入 `c_write_fifo` → 写入 C RAM
 8. `done_ctrl` 统计真正落 RAM 的写数,达到 M*N 且全部 tile 结束才发 `core_done`
 
@@ -117,8 +117,8 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
    导致 Buffer 读写目标错乱(读回的是状态寄存器值)。
 2. **CPU 请求重复接收**:总线模型在 `cpu_ready` 后多保持一拍 `cpu_valid`,`mmio_if` 在 IDLE
    态会把它当新请求重复锁存,所有读结果错位一格。约定:**采样到 ready 的同一拍撤下 valid**。
-3. **顶层写数据断线**:`cpu_port_ctrl` 输出的(字节使能屏蔽后)写数据只连到内部线,
-   未桥接到 `npu_top` 对外端口,RAM 收到高阻。补三根桥接赋值。
+3. **顶层写数据断线**:历史版本中 `cpu_port_ctrl` 的字节屏蔽写数据没有正确送到 Buffer RAM。
+   当前版本由 `npu_top` 的组合输出桥接统一送出 `cpu_a_wdata/cpu_bt_wdata/cpu_c_wdata`，并由仿真覆盖。
 4. **k-tile 间 feed_cnt 未清零**:NEXT_K 路径不经过 CLEAR_C_TILE,残留计数值使第二个及
    以后的 K tile 只喂 1 对数据就误判"喂数完成"。改为在 PREFETCH_INPUT 态重置。
 5. **量化符号扩展**:32 位累加值赋给 64 位中间量时被零扩展,负数右移结果全错,
@@ -163,7 +163,7 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 | `a_stream_ctrl` | `a_stream_ctrl.v` | 发出 A RAM 读请求 |
 | `bt_stream_ctrl` | `bt_stream_ctrl.v` | 发出 BT RAM 读请求 |
 | `pair_stream_ctrl` | `pair_stream_ctrl.v` | A/BT FIFO 成对弹出 |
-| `array_ctrl` | `array_ctrl.v` | 阵列 start/enable/clear/flush/last |
+| `array_ctrl` | `array_ctrl.v` | 阵列 start/enable/clear/flush；`feed_last` 仅保留为兼容/波形信号 |
 | `c_tile_acc_ctrl` | `c_tile_acc_ctrl.v` | 保存并累加一个 C Tile 的部分和 |
 | `c_tile_write_ctrl` | `c_tile_write_ctrl.v` | 生成 C 地址、数据和写有效 |
 | `done_ctrl` | `done_ctrl.v` | 统计真正落 RAM 的 C 写操作 |
@@ -196,7 +196,7 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 | `tile_result_collector` | `tile_result_collector.v` | 收集 16 个 PE 累加结果 |
 | `output_reorder` | `output_reorder.v` | 物理扫描序转 C 行主序 |
 | `result_quantizer` | `result_quantizer.v` | 舍入、右移和饱和 |
-| `mac_status` | `mac_status.v` | ready/busy/done/error 状态 |
+| `mac_status` | `mac_status.v` | 将 `collect_done` 转换为单拍 `array_done` |
 
 ### 10.5 通用基元
 
@@ -348,7 +348,7 @@ python3 scripts/draw_wave.py
 
 1. NPU 当前通过 `npu_system` 独立提供 MMIO，尚未接入 `project_risc_v` 的 AHB/APB 总线。
 2. `rst` 为 NPU 独立高有效同步复位，已经与 `clk` 对齐；接入 SoC 时仍需明确复位同步关系。
-3. 当前 `npu_mac` 保留部分 ready/status 端口，后续增加复杂反压时应将握手闭环化。
+3. 当前 `npu_mac` 的 `a_stream_ready/bt_stream_ready` 与 `array_enable` 同源；后续增加复杂反压时应将握手闭环化。
 4. FPGA 实现前需要重新检查 RAM/FIFO 推断、PE 阵列时序、C 写 FIFO 反压和资源使用率。
 
 ## 18. 总结

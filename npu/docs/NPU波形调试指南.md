@@ -189,6 +189,8 @@ tb_npu.dut.core_done
 
 ## 4. 正常任务的波形顺序
 
+`rst=1` 为高有效同步复位，保持若干个 `clk` 上升沿后置 `rst=0` 释放复位。
+
 一笔正常任务应当呈现以下因果链：
 
 ```text
@@ -230,6 +232,8 @@ start_pulse = 1
 ```
 
 `start_pulse` 应只持续一个时钟周期。如果 CPU 请求变化但 `req_valid` 没有出现，检查 `mmio_if`；如果 `req_valid` 出现但 `start_req` 没有出现，检查 `addr_decoder` 和 CTRL 写入。
+
+`mmio_if` 当前状态为 `S_IDLE -> S_WAIT1 -> S_RESP`；Buffer 读会额外经过 `S_WAIT2` 等待同步 RAM 返回。
 
 常用配置地址：
 
