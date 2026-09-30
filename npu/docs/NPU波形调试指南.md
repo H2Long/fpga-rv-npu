@@ -54,15 +54,14 @@ tb_npu.dut.u_npu_top.u_control_regs
 tb_npu.dut.u_npu_top.u_start_ctrl
 tb_npu.dut.u_npu_ctrl.u_systolic_fsm
 tb_npu.dut.u_npu_ctrl.u_tile_scheduler
-tb_npu.dut.u_npu_ctrl.u_block_addr_gen
 tb_npu.dut.u_npu_ctrl.u_c_tile_acc_ctrl
 tb_npu.dut.u_npu_ctrl.u_c_tile_write_ctrl
 tb_npu.dut.u_npu_ctrl.u_done_ctrl
-tb_npu.dut.u_npu_buffer.u_a_buffer.u_ram
-tb_npu.dut.u_npu_buffer.u_bt_buffer.u_ram
-tb_npu.dut.u_npu_buffer.u_c_buffer.u_ram
-tb_npu.dut.u_npu_buffer.u_a_prefetch_fifo.u_fifo
-tb_npu.dut.u_npu_buffer.u_bt_prefetch_fifo.u_fifo
+tb_npu.dut.u_npu_buffer.u_a_buffer.mem
+tb_npu.dut.u_npu_buffer.u_bt_buffer.mem
+tb_npu.dut.u_npu_buffer.u_c_buffer.mem
+tb_npu.dut.u_npu_buffer.u_a_prefetch_fifo.mem
+tb_npu.dut.u_npu_buffer.u_bt_prefetch_fifo.mem
 tb_npu.dut.u_npu_buffer.u_c_write_fifo.u_fifo
 tb_npu.dut.u_npu_mac.u_a_input_unpacker
 tb_npu.dut.u_npu_mac.u_bt_input_unpacker
@@ -72,7 +71,7 @@ tb_npu.dut.u_npu_mac.u_pe_array.u_pe11
 tb_npu.dut.u_npu_mac.u_pe_array.u_pe33
 tb_npu.dut.u_npu_mac.u_drain_controller
 tb_npu.dut.u_npu_mac.u_tile_result_collector
-tb_npu.dut.u_npu_mac.u_mac_status
+tb_npu.dut.u_npu_mac.collect_done
 ```
 
 ## 3. 推荐的 GTKWave 信号分组
@@ -155,7 +154,7 @@ u_pe11.a_in       u_pe11.a_v_in       u_pe11.bt_in       u_pe11.bt_v_in       u_
 u_pe33.a_in       u_pe33.a_v_in       u_pe33.bt_in       u_pe33.bt_v_in       u_pe33.acc
 ```
 
-同时观察 `u_a_input_unpacker.lane0..lane3`、`u_bt_input_unpacker.lane0..lane3`、`u_skew.a_sk0..a_sk3`、`u_skew.bt_sk0..bt_sk3` 及对应 valid。
+同时观察两个 `input_unpacker` 实例的 `lane0..lane3`、`u_skew.a_sk0..a_sk3`、`u_skew.bt_sk0..bt_sk3` 及对应 valid。
 
 ### 3.6 排空和结果收集
 
@@ -231,7 +230,7 @@ start_req = 1
 start_pulse = 1
 ```
 
-`start_pulse` 应只持续一个时钟周期。如果 CPU 请求变化但 `req_valid` 没有出现，检查 `mmio_if`；如果 `req_valid` 出现但 `start_req` 没有出现，检查 `addr_decoder` 和 CTRL 写入。
+`start_pulse` 应只持续一个时钟周期。如果 CPU 请求变化但 `req_valid` 没有出现，检查 `mmio_if`；如果 `req_valid` 出现但 `start_req` 没有出现，检查 `npu_top` 内联地址译码和 CTRL 写入。
 
 `mmio_if` 当前状态为 `S_IDLE -> S_WAIT1 -> S_RESP`；Buffer 读会额外经过 `S_WAIT2` 等待同步 RAM 返回。
 
@@ -260,7 +259,7 @@ BT FIFO count：0 -> 1 -> 2 -> 3 -> 4
 
 RAM 读请求和返回数据相差一个时钟周期。`a_fifo_push`/`bt_fifo_push` 应在 RAM 数据有效的周期出现。
 
-如果 A FIFO 增长而 BT FIFO 不增长，优先检查 `bt_addr`、`bt_re`、`bt_ram_rdata` 和 `bt_fifo_push`。如果 FIFO count 一直为零，优先检查 RAM 读使能和 `npu_read_port_ctrl`。
+如果 A FIFO 增长而 BT FIFO 不增长，优先检查 `bt_addr`、`bt_re`、`bt_ram_rdata` 和 `bt_fifo_push`。如果 FIFO count 一直为零，优先检查 RAM 读使能和 `npu_buffer` 内部的读使能延迟寄存器。
 
 ## 7. A/BT 成对传输
 
@@ -360,10 +359,10 @@ T3 的参数为 `M=6,N=7,TM=4,TN=4`，四个输出 Tile 的有效元素数量为
 
 | 波形现象 | 优先检查 |
 |---|---|
-| CPU 写配置但参数不变 | `mmio_if`、`addr_decoder`、`control_regs` |
+| CPU 写配置但参数不变 | `mmio_if`、`npu_top` 内联译码、`control_regs` |
 | start 没产生 | CTRL 地址、`req_byte_en[0]`、`start_req` |
 | FSM 卡在预取 | A/BT `*_re`、RAM 返回、FIFO push/count |
-| A/BT FIFO 数量不一致 | `npu_read_port_ctrl`、RAM 地址和 FIFO |
+| A/BT FIFO 数量不一致 | `npu_buffer` 内部读延迟、RAM 地址和 FIFO |
 | `pair_fire` 不出现 | 两侧 FIFO valid、ready、`feed_go` |
 | PE 输入有效但 acc 不变 | PE valid、`clear_acc`、`enable` |
 | PE00 正常而远端 PE 错 | skew 延迟和 PE 阵列连接 |

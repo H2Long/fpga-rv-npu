@@ -21,13 +21,13 @@ module mmio_if(
     input [3:0]  cpu_byte_en,
     output reg         cpu_ready,
     output reg  [31:0] cpu_rdata,
-    // 内部锁存请求(送 addr_decoder / 目标模块)
+    // 内部锁存请求(送 npu_top 译码和目标模块)
     output reg  [31:0] req_addr,
     output reg  [31:0] req_wdata,
     output reg  [3:0]  req_byte_en,
     output reg         req_we,
     output reg         req_valid,     // 锁存后单拍有效
-    // 对 req_addr 的组合译码结果(addr_decoder 提供)
+    // 对 req_addr 的组合译码结果(npu_top 内联提供)
     input        sel_ctrl,
     input        sel_status,
     input        sel_buffer,

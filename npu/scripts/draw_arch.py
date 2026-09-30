@@ -91,49 +91,48 @@ box(3.2, 6.4, 6.5, 4.6, "CPU", "RISC-V 核", "#57606A", fs=11, mono=False)
 # ---------- npu_top 模块 ----------
 BW, BH = 12.5, 4.6
 box(13,   6.4, BW, BH, "mmio_if",           "MMIO 总线入口", C_TOP_BD)
-box(28.5, 6.4, BW, BH, "addr_decoder",      "地址译码", C_TOP_BD)
+box(28.5, 6.4, BW, BH, "npu_top.decode",     "地址译码", C_TOP_BD, fs=8.0)
 box(44,   6.4, BW, BH, "control_regs",      "配置寄存器", C_TOP_BD)
 box(59.5, 6.4, BW, BH, "start_ctrl",        "任务生命周期", C_TOP_BD)
-box(28.5, 14.2, BW, BH, "status_regs",      "BUSY/DONE/ERROR", C_TOP_BD)
-box(44,   14.2, BW, BH, "buffer_access_ctrl", "CPU/NPU 仲裁", C_TOP_BD, fs=8.6)
-box(59.5, 14.2, BW, BH, "cpu_port_ctrl",    "CPU RAM 端口", C_TOP_BD)
+box(28.5, 14.2, BW, BH, "npu_top.status",   "BUSY/DONE/ERROR", C_TOP_BD, fs=8.0)
+box(44,   14.2, BW, BH, "buffer_access_ctrl", "仲裁/字节屏蔽/RAM端口", C_TOP_BD, fs=7.2)
 ax.text(76.5, 8.9, "MMIO 映射\n0x0000  控制寄存器\n0x0020  状态寄存器\n0x1000  A Buffer\n0x2000  BT Buffer\n0x3000  C Buffer",
         fontsize=8.5, color="#3D648C", va="center", ha="left", zorder=4, linespacing=1.55,
         bbox=dict(boxstyle="round,pad=0.55", fc="white", ec=C_TOP_BD, lw=1.1))
 
 # ---------- npu_ctrl 模块 ----------
 CBW = 13.5
-box(4,   25.5, CBW, BH + 1.1, "tile_param_latch", "start 时锁存参数", C_CTRL_BD, fs=7.0)
-box(4,   32.3, CBW, BH, "config_checker",   "合法性/容量检查", C_CTRL_BD, fs=7.8)
+box(4,   25.5, CBW, BH + 1.1, "npu_ctrl.config", "参数检查/快照复用", C_CTRL_BD, fs=7.0)
+box(4,   32.3, CBW, BH, "npu_ctrl.bounds",   "边界尺寸派生", C_CTRL_BD, fs=7.8)
 box(4,   39.1, CBW, BH, "tile_scheduler",   "i/j/k 三层循环", C_CTRL_BD, fs=8.2)
-box(4,   45.9, CBW, BH + 1.1, "loop_counters_tile_status", "valid_tm/tn/tk 边界", C_CTRL_BD, fs=6.2)
-box(20.5, 25.5, CBW, BH, "block_addr_gen",  "A/BT/C 基地址", C_CTRL_BD, fs=8.0)
+box(4,   45.9, CBW, BH + 1.1, "npu_ctrl.addr", "A/BT/C 基地址", C_CTRL_BD, fs=7.0)
+box(20.5, 25.5, CBW, BH, "npu_stream_ctrl",  "A/BT 共用读流", C_CTRL_BD, fs=8.0)
 box(20.5, 32.3, CBW, 10.2, "systolic_fsm",  "13 态主状态机\n预取→喂数→排空→收→写", C_CTRL_BD, fs=9.8)
 ax.add_patch(FancyBboxPatch((20.5, 32.3), CBW, 10.2,
     boxstyle="round,pad=0.06,rounding_size=0.35", fc="none", ec=C_CTRL,
     lw=1.0, ls=(0, (2.2, 2.0)), zorder=3.5))
 box(20.5, 45.9, CBW, BH, "c_tile_acc_ctrl", "K 向累加 16×32b", C_CTRL_BD, fs=7.8)
 box(20.5, 52.0, CBW, BH, "done_ctrl",       "core_done 判定", C_CTRL_BD, fs=8.2)
-box(37, 25.5, CBW, BH, "a_stream_ctrl",     "A 读流控制", C_CTRL_BD, fs=8.2)
-box(37, 32.3, CBW, BH, "bt_stream_ctrl",    "BT 读流控制", C_CTRL_BD, fs=8.2)
+box(37, 25.5, CBW, BH, "npu_stream_ctrl",     "A 读流实例", C_CTRL_BD, fs=8.2)
+box(37, 32.3, CBW, BH, "npu_stream_ctrl",    "BT 读流实例", C_CTRL_BD, fs=8.2)
 box(37, 39.1, CBW, BH, "pair_stream_ctrl",  "A/BT 成对送数", C_CTRL_BD, fs=7.8)
-box(37, 45.9, CBW, BH, "array_ctrl",        "阵列周期控制", C_CTRL_BD, fs=8.2)
+box(37, 45.9, CBW, BH, "FSM 组合译码",        "阵列周期控制", C_CTRL_BD, fs=8.2)
 box(37, 52.0, CBW, BH, "c_tile_write_ctrl", "C 写回/越界过滤", C_CTRL_BD, fs=7.2)
 box(4, 52.0, CBW, BH, "result_quantizer",   "舍入/移位/饱和", C_CTRL_BD, fs=7.4)
 
 # ---------- npu_buffer 模块 ----------
 BBW = 15.5
-box(63, 25.5, BBW, BH, "a_buffer",          "64×32 bit", C_BUF_BD)
-box(63, 32.3, BBW, BH, "bt_buffer",         "64×32 bit", C_BUF_BD)
-box(63, 39.1, BBW, BH, "c_buffer",          "256×32 bit", C_BUF_BD)
-box(81.5, 25.5, BBW, BH, "a_prefetch_fifo", "吸收 RAM 延迟", C_BUF_BD, fs=7.6)
-box(81.5, 32.3, BBW, BH, "bt_prefetch_fifo", "吸收 RAM 延迟", C_BUF_BD, fs=7.6)
+box(63, 25.5, BBW, BH, "npu_ram(A)",        "64×32 bit", C_BUF_BD)
+box(63, 32.3, BBW, BH, "npu_ram(BT)",       "64×32 bit", C_BUF_BD)
+box(63, 39.1, BBW, BH, "npu_ram(C)",        "256×32 bit", C_BUF_BD)
+box(81.5, 25.5, BBW, BH, "npu_sync_fifo(A)", "吸收 RAM 延迟", C_BUF_BD, fs=7.2)
+box(81.5, 32.3, BBW, BH, "npu_sync_fifo(BT)", "吸收 RAM 延迟", C_BUF_BD, fs=7.2)
 box(81.5, 39.1, BBW, BH, "c_write_fifo",    "写回解耦", C_BUF_BD, fs=7.8)
-box(63, 45.9, 17.5, BH, "npu_read_port_ctrl", "同步读→FIFO", C_BUF_BD, fs=7.4)
+box(63, 45.9, 17.5, BH, "npu_buffer.read_delay", "同步读→FIFO", C_BUF_BD, fs=6.8)
 
 # ---------- npu_mac 模块 ----------
-box(6,  61.6, 13.5, BH, "a_input_unpacker",  "32b→4×INT8", C_MAC_BD, fs=8.0)
-box(6,  68.6, 13.5, BH, "bt_input_unpacker", "32b→4×INT8", C_MAC_BD, fs=8.0)
+box(6,  61.6, 13.5, BH, "input_unpacker(A)",  "32b→4×INT8", C_MAC_BD, fs=7.6)
+box(6,  68.6, 13.5, BH, "input_unpacker(BT)", "32b→4×INT8", C_MAC_BD, fs=7.2)
 box(23, 61.6, 14.5, 11.6, "a_bt_skew_pipeline", "A 行 r 延迟 r 拍\nBT 列 c 延迟 c 拍", C_MAC_BD, fs=7.6)
 px, py, pw, ph = 42, 61.6, 17.5, 11.6
 box(px, py, pw, ph, "", "", C_MAC_BD)
@@ -150,8 +149,8 @@ ax.text(px + pw/2, py + ph - 0.8, "acc[r][c] += A[r][k]×BT[c][k]",
         fontsize=7.6, ha="center", color="#57606A", zorder=5)
 box(63, 61.6, 13.5, BH, "drain_controller", "排空 P+Q-2=6 拍", C_MAC_BD, fs=7.4)
 box(63, 68.6, 13.5, BH, "tile_result_collector", "16 结果串行输出", C_MAC_BD, fs=6.4)
-box(79.5, 68.6, 13.5, BH, "output_reorder", "行主序重排", C_MAC_BD, fs=7.8)
-box(79.5, 61.6, 13.5, BH, "mac_status",     "ready/busy/done", C_MAC_BD, fs=7.8)
+box(79.5, 68.6, 13.5, BH, "collector index", "扫描下标直出", C_MAC_BD, fs=7.5)
+box(79.5, 61.6, 13.5, BH, "collect_done",    "直接作为 array_done", C_MAC_BD, fs=7.0)
 
 # ================= 连线(按接线总表 §7) =================
 # --- CPU <-> mmio_if ---
@@ -184,11 +183,11 @@ wire([(17.5, 48.6), (20.5, 42.5)], C_CTRL)                          # loop->fsm
 wire([(34.0, 33.9), (35.7, 33.9), (35.7, 28.9), (37.0, 28.9)], C_CTRL)  # fsm->a_stream
 wire([(34.0, 34.8), (37.0, 34.8)], C_CTRL)                          # fsm->bt_stream
 wire([(34.0, 39.4), (37.0, 41.4)], C_CTRL)                          # fsm->pair
-wire([(31.9, 39.4), (31.9, 43.4), (43.7, 43.4), (43.7, 45.9)], C_CTRL)  # fsm->array_ctrl
+wire([(31.9, 39.4), (31.9, 43.4), (43.7, 43.4), (43.7, 45.9)], C_CTRL)  # fsm->组合阵列控制
 wire([(27.2, 42.5), (27.2, 45.9)], C_CTRL)                          # fsm->c_tile_acc
 wire([(29.9, 42.5), (29.9, 52.3), (29.9, 52.3), (30.5, 52.3)], C_CTRL, alpha=0)  # 占位
 wire([(20.5, 33.9), (18.9, 33.9), (18.9, 54.3), (20.5, 54.3)], C_CTRL)  # fsm->done_ctrl
-# --- block_addr_gen 三色输出 ---
+# --- npu_ctrl 内部地址生成三色输出 ---
 wire([(34.0, 27.8), (37.0, 27.8)], C_A)                             # -> a_stream
 wlabel(35.5, 26.8, "A 基地址", C_A, fs=6.2)
 wire([(27.2, 30.1), (27.2, 34.6), (37.0, 34.6)], C_BT)              # -> bt_stream
@@ -223,7 +222,7 @@ wire([(43.7, 41.4), (43.7, 56.6), (12.7, 56.6), (12.7, 61.6)], C_A)
 wlabel(26.5, 55.8, "A 数据对(1 字 = 4 行 × 同一 k)", C_A, fs=6.6)
 wire([(44.6, 41.4), (44.6, 57.4), (12.7, 57.4), (12.7, 58.6), (12.7, 68.6)], C_BT)
 wlabel(26.5, 58.2, "BT 数据对(与 A 同拍成对推进)", C_BT, fs=6.6)
-# array_ctrl -> mac
+# npu_ctrl 阶段译码 -> mac
 wire([(43.7, 50.5), (43.7, 60.2)], C_CTRL)
 wire([(43.7, 60.2), (43.7, 59.8), (30.2, 59.8), (30.2, 61.6)], C_CTRL, ls=(0, (3, 2)))
 wire([(69.7, 61.6), (69.7, 59.8), (50.7, 59.8), (50.7, 61.6)], C_CTRL, ls=(0, (3, 2)))
@@ -236,10 +235,10 @@ wlabel(39.8, 64.8, "波前", C_MIX, fs=6.6)
 wire([(59.5, 67.4), (63.0, 67.4)], C_C)
 wire([(69.7, 66.2), (69.7, 68.6)], C_CTRL)
 wire([(76.5, 70.9), (79.5, 70.9)], C_C)
-# output_reorder -> c_tile_acc_ctrl
+# collector -> c_tile_acc_ctrl
 wire([(86.2, 68.6), (86.2, 53.6), (59.5, 53.6), (59.5, 48.2), (34.0, 48.2)], C_C)
 wlabel(73.5, 52.7, "c_result / index / valid / last", C_C, fs=6.8)
-# mac_status -> systolic_fsm
+# collect_done -> systolic_fsm
 wire([(86.2, 61.6), (86.2, 59.2), (46.4, 59.2), (46.4, 40.6), (34.0, 40.6)], C_STAT, ls=(0, (3, 2)))
 wlabel(66.5, 58.4, "array_done", C_STAT, fs=6.6)
 # --- 状态回传 ---

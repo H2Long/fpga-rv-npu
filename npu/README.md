@@ -14,7 +14,8 @@ npu/
 │   └── mac/                  INT8 拆包、PE 阵列和结果收集
 ├── tb/tb_npu.v               NPU MMIO 行为测试台
 ├── scripts/                  NPU 仿真和绘图脚本
-├── docs/NPU_完整设计说明.md   唯一的 NPU 设计说明
+├── docs/NPU_完整设计说明.md   当前 RTL 设计说明
+├── docs/版本更新说明.md       v2.0 模块、信号和数据流变化
 ├── docs/NPU波形调试指南.md     GTKWave 波形观察和故障定位指南
 ├── sim/logs/                 NPU 仿真日志
 ├── sim/waves/                NPU VCD 波形
@@ -47,4 +48,4 @@ python3 scripts/draw_wavefront.py
 python3 scripts/draw_wave.py
 ```
 
-完整的模块清单、接口、地址映射、数据布局、时序、错误处理和验证说明见 [NPU_完整设计说明.md](docs/NPU_完整设计说明.md)；波形阅读方法见 [NPU波形调试指南.md](docs/NPU波形调试指南.md)。
+完整的模块清单、接口、地址映射、数据布局、时序、错误处理和验证说明见 [NPU_完整设计说明.md](docs/NPU_完整设计说明.md)；v2.0 的模块、信号和数据流变化见 [版本更新说明.md](docs/版本更新说明.md)；波形阅读方法见 [NPU波形调试指南.md](docs/NPU波形调试指南.md)。

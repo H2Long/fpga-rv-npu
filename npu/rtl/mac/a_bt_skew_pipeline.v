@@ -10,10 +10,10 @@ module a_bt_skew_pipeline(
     input        clk,
     input        rst,
     input        enable,
-    // A 侧输入(a_input_unpacker)
+    // A 侧输入(input_unpacker)
     input [7:0]  a_in0, a_in1, a_in2, a_in3,
     input        a_in_v,
-    // BT 侧输入(bt_input_unpacker)
+    // BT 侧输入(input_unpacker)
     input [7:0]  bt_in0, bt_in1, bt_in2, bt_in3,
     input        bt_in_v,
     // A 侧输出(到 pe_array 各行最左)

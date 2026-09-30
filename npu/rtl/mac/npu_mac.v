@@ -11,7 +11,7 @@
 module npu_mac(
     input        clk,
     input        rst,
-    // 阵列控制(来自 npu_ctrl.array_ctrl)
+    // 阵列控制(来自 npu_ctrl 的阶段译码)
     input        array_start,
     input        array_enable,
     input        array_clear_acc,
@@ -40,13 +40,13 @@ module npu_mac(
     wire [7:0] b_l0, b_l1, b_l2, b_l3;
     wire       b_lv;
 
-    a_input_unpacker u_a_input_unpacker(
+    input_unpacker u_a_input_unpacker(
         .in_valid(a_stream_valid), .in_data(a_stream_data), .lane_en(a_lane_en),
         .lane0(a_l0), .lane1(a_l1), .lane2(a_l2), .lane3(a_l3),
         .lanes_valid(a_lv)
     );
 
-    bt_input_unpacker u_bt_input_unpacker(
+    input_unpacker u_bt_input_unpacker(
         .in_valid(bt_stream_valid), .in_data(bt_stream_data), .lane_en(bt_lane_en),
         .lane0(b_l0), .lane1(b_l1), .lane2(b_l2), .lane3(b_l3),
         .lanes_valid(b_lv)
@@ -85,8 +85,6 @@ module npu_mac(
     wire drain_done, collect_done;
     wire c_result_valid_w;
     wire [`NPU_ACC_W-1:0] c_result_w;
-    wire [3:0] c_result_index_w;
-    wire array_done_w;
 
     drain_controller u_drain_controller(
         .clk(clk), .rst(rst),
@@ -104,17 +102,6 @@ module npu_mac(
         .collect_done(collect_done)
     );
 
-    output_reorder u_output_reorder(
-        .scan_index(scan_index), .c_result_index(c_result_index_w)
-    );
-
-    // ---- 状态 ----
-    mac_status u_mac_status(
-        .clk(clk), .rst(rst),
-        .collect_done(collect_done),
-        .array_done(array_done_w)
-    );
-
     // 当前阵列没有额外的随机反压：feed 和 drain 期间都可以推进。
     // ready 与 array_enable 同源，pair_stream_ctrl 用它保证只有阵列推进时才 pop FIFO。
     always @(*) begin
@@ -122,8 +109,9 @@ module npu_mac(
         bt_stream_ready = array_enable;
         c_result_valid  = c_result_valid_w;
         c_result        = c_result_w;
-        c_result_index  = c_result_index_w;
-        array_done      = array_done_w;
+        // collector 当前按行主序扫描，扫描下标就是逻辑 C 下标。
+        c_result_index  = scan_index;
+        array_done      = collect_done;
     end
 
 endmodule

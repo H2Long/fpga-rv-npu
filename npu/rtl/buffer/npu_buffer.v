@@ -12,7 +12,7 @@ module npu_buffer(
     input        clk,
     input        rst,
     input        core_busy,
-    // CPU 侧端口(来自 npu_top.cpu_port_ctrl)
+    // CPU 侧端口(来自 npu_top.buffer_access_ctrl)
     input        cpu_a_we,  cpu_a_re,
     input [`NPU_ABUF_AW-1:0] cpu_a_addr,
     input [31:0] cpu_a_wdata,
@@ -57,7 +57,7 @@ module npu_buffer(
     wire                     a_ram_re    = core_busy ? npu_a_re    : cpu_a_re;
     wire [31:0]              a_ram_rdata;
 
-    a_buffer u_a_buffer(
+    npu_ram #(.AW(`NPU_ABUF_AW)) u_a_buffer(
         .clk(clk),
         .we(a_ram_we), .waddr(a_ram_waddr), .wdata(cpu_a_wdata),
         .re(a_ram_re), .raddr(a_ram_raddr), .rdata(a_ram_rdata)
@@ -69,7 +69,7 @@ module npu_buffer(
     wire                     bt_ram_re    = core_busy ? npu_bt_re    : cpu_bt_re;
     wire [31:0]              bt_ram_rdata;
 
-    bt_buffer u_bt_buffer(
+    npu_ram #(.AW(`NPU_BBUF_AW)) u_bt_buffer(
         .clk(clk),
         .we(bt_ram_we), .waddr(bt_ram_waddr), .wdata(cpu_bt_wdata),
         .re(bt_ram_re), .raddr(bt_ram_raddr), .rdata(bt_ram_rdata)
@@ -85,13 +85,13 @@ module npu_buffer(
     wire [31:0]              c_ram_wdata = core_busy ? cwf_data  : cpu_c_wdata;
     wire [31:0]              c_ram_rdata;
 
-    c_buffer u_c_buffer(
+    npu_ram #(.AW(`NPU_CBUF_AW)) u_c_buffer(
         .clk(clk),
         .we(c_ram_we), .waddr(c_ram_waddr), .wdata(c_ram_wdata),
         .re(cpu_c_re), .raddr(cpu_c_addr), .rdata(c_ram_rdata)
     );
-    // 同步 RAM 的读数据比 read enable 晚一拍返回，npu_read_port_ctrl
-    // 将这个延迟后的 valid 与 RAM 数据一起送入预取 FIFO。
+    // 同步 RAM 的读数据比 read enable 晚一拍返回；在这里延迟读使能，
+    // 让 FIFO push 与 RAM 返回数据保持同拍。
     // ---- NPU 读端口控制:同步读返回 -> FIFO ----
     wire a_fifo_push, bt_fifo_push;
     wire [31:0] a_fifo_rdata_w, bt_fifo_rdata_w;
@@ -99,22 +99,33 @@ module npu_buffer(
     wire [`NPU_FIFO_AW:0] a_fifo_count_w, bt_fifo_count_w;
     wire cwr_ready_w, cwr_empty_w, c_wr_pulse_w;
 
-    npu_read_port_ctrl u_npu_read_port_ctrl(
-        .clk(clk), .rst(rst), .core_busy(core_busy),
-        .a_re(npu_a_re),  .a_fifo_push(a_fifo_push),
-        .bt_re(npu_bt_re), .bt_fifo_push(bt_fifo_push)
-    );
+    reg a_re_d, bt_re_d;
 
-    a_prefetch_fifo u_a_prefetch_fifo(
+    always @(posedge clk) begin
+        if (rst) begin
+            a_re_d  <= 1'b0;
+            bt_re_d <= 1'b0;
+        end else begin
+            a_re_d  <= npu_a_re  && core_busy;
+            bt_re_d <= npu_bt_re && core_busy;
+        end
+    end
+
+    assign a_fifo_push  = a_re_d;
+    assign bt_fifo_push = bt_re_d;
+
+    npu_sync_fifo #(.AW(`NPU_FIFO_AW), .DW(32)) u_a_prefetch_fifo(
         .clk(clk), .rst(rst),
         .push(a_fifo_push), .wdata(a_ram_rdata), .pop(a_fifo_pop),
-        .rdata(a_fifo_rdata_w), .valid(a_fifo_valid_w), .count(a_fifo_count_w)
+        .rdata(a_fifo_rdata_w), .valid(a_fifo_valid_w), .empty(), .full(),
+        .count(a_fifo_count_w)
     );
 
-    bt_prefetch_fifo u_bt_prefetch_fifo(
+    npu_sync_fifo #(.AW(`NPU_FIFO_AW), .DW(32)) u_bt_prefetch_fifo(
         .clk(clk), .rst(rst),
         .push(bt_fifo_push), .wdata(bt_ram_rdata), .pop(bt_fifo_pop),
-        .rdata(bt_fifo_rdata_w), .valid(bt_fifo_valid_w), .count(bt_fifo_count_w)
+        .rdata(bt_fifo_rdata_w), .valid(bt_fifo_valid_w), .empty(), .full(),
+        .count(bt_fifo_count_w)
     );
 
     // C 写 FIFO 将结果写回和 C RAM 的实际写脉冲解耦；done_ctrl 统计 c_wr_pulse。

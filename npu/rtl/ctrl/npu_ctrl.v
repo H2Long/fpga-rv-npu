@@ -16,7 +16,7 @@ module npu_ctrl(
     input [`NPU_TILE_W-1:0] cfg_tm, cfg_tn,
     input [`NPU_TK_W-1:0]   cfg_tk,
     input [`NPU_QS_W-1:0]   cfg_qshift,
-    // A/BT RAM 读请求(经 npu_buffer.npu_read_port_ctrl)
+    // A/BT RAM 读请求(经 npu_buffer 内部同步读延迟)
     output reg [`NPU_ABUF_AW-1:0] a_addr,
     output reg        a_re,
     output reg [`NPU_BBUF_AW-1:0] bt_addr,
@@ -69,29 +69,52 @@ module npu_ctrl(
     wire core_busy_w, core_done_w;
     wire [`NPU_ERR_W-1:0] error_code_w;
 
-    // ---- 锁存参数 ----
-    wire [`NPU_DIM_W-1:0]  lp_m, lp_n, lp_k;
-    wire [`NPU_TILE_W-1:0] lp_tm, lp_tn;
-    wire [`NPU_TK_W-1:0]   lp_tk;
-    wire [`NPU_QS_W-1:0]   lp_qs;
-
-    tile_param_latch u_tile_param_latch(
-        .clk(clk), .rst(rst), .start_pulse(start_pulse),
-        .cfg_m(cfg_m), .cfg_n(cfg_n), .cfg_k(cfg_k),
-        .cfg_tm(cfg_tm), .cfg_tn(cfg_tn), .cfg_tk(cfg_tk), .cfg_qshift(cfg_qshift),
-        .lp_m(lp_m), .lp_n(lp_n), .lp_k(lp_k),
-        .lp_tm(lp_tm), .lp_tn(lp_tn), .lp_tk(lp_tk), .lp_qs(lp_qs)
-    );
+    // npu_top/start_ctrl 已经在 start_pulse 前锁存任务参数，这里直接复用
+    // 该快照，避免控制面再次复制一组参数寄存器。
+    wire [`NPU_DIM_W-1:0]  lp_m = cfg_m;
+    wire [`NPU_DIM_W-1:0]  lp_n = cfg_n;
+    wire [`NPU_DIM_W-1:0]  lp_k = cfg_k;
+    wire [`NPU_TILE_W-1:0] lp_tm = cfg_tm;
+    wire [`NPU_TILE_W-1:0] lp_tn = cfg_tn;
+    wire [`NPU_TK_W-1:0]   lp_tk = cfg_tk;
+    wire [`NPU_QS_W-1:0]   lp_qs = cfg_qshift;
 
     // ---- 配置检查 ----
-    wire cfg_ok;
-    wire [`NPU_ERR_W-1:0] chk_err_code;
+    reg cfg_ok;
+    reg [`NPU_ERR_W-1:0] chk_err_code;
+    integer a_words, bt_words, c_words;
 
-    config_checker u_config_checker(
-        .lp_m(lp_m), .lp_n(lp_n), .lp_k(lp_k),
-        .lp_tm(lp_tm), .lp_tn(lp_tn), .lp_tk(lp_tk),
-        .cfg_ok(cfg_ok), .err_code(chk_err_code)
-    );
+    // 配置检查只在启动前被 FSM 使用，直接放在调度中心，避免一个只含
+    // 组合逻辑的层级模块。
+    always @(*) begin
+        a_words  = 0;
+        bt_words = 0;
+        c_words  = lp_m * lp_n;
+        if (lp_tm != 0)
+            a_words = ((lp_m + lp_tm - 1) / lp_tm) * lp_k;
+        if (lp_tn != 0)
+            bt_words = ((lp_n + lp_tn - 1) / lp_tn) * lp_k;
+
+        cfg_ok = 1'b1;
+        chk_err_code = `NPU_ERR_NONE;
+        if (lp_m == 0 || lp_n == 0 || lp_k == 0) begin
+            cfg_ok = 1'b0;
+            chk_err_code = `NPU_ERR_DIM_ZERO;
+        end else if (lp_tm == 0 || lp_tn == 0 ||
+                     lp_tm > `NPU_P || lp_tn > `NPU_Q) begin
+            cfg_ok = 1'b0;
+            chk_err_code = `NPU_ERR_TILE_GT_ARRAY;
+        end else if (lp_tk == 0 || lp_tk > lp_k ||
+                     lp_tk > (1 << `NPU_FIFO_AW)) begin
+            cfg_ok = 1'b0;
+            chk_err_code = `NPU_ERR_TK_INVALID;
+        end else if (a_words > (1 << `NPU_ABUF_AW) ||
+                     bt_words > (1 << `NPU_BBUF_AW) ||
+                     c_words > (1 << `NPU_CBUF_AW)) begin
+            cfg_ok = 1'b0;
+            chk_err_code = `NPU_ERR_BUF_OVERFLOW;
+        end
+    end
 
     // ---- tile 调度与状态 ----
     wire [`NPU_TIDX_W-1:0] tile_i, tile_j, tile_k;
@@ -105,34 +128,38 @@ module npu_ctrl(
         .tile_i(tile_i), .tile_j(tile_j), .tile_k(tile_k)
     );
 
-    wire first_k_tile, last_k_tile, last_output_tile;
-    wire [`NPU_TILE_W-1:0] valid_tm, valid_tn;
-    wire [`NPU_TK_W-1:0]   valid_tk;
+    reg first_k_tile, last_k_tile, last_output_tile;
+    reg [`NPU_TILE_W-1:0] valid_tm, valid_tn;
+    reg [`NPU_TK_W-1:0]   valid_tk;
+    wire [`NPU_TIDX_W-1:0] nt_i = (lp_tm == 0) ? {`NPU_TIDX_W{1'b0}} :
+                                   (lp_m + lp_tm - 1) / lp_tm;
+    wire [`NPU_TIDX_W-1:0] nt_j = (lp_tn == 0) ? {`NPU_TIDX_W{1'b0}} :
+                                   (lp_n + lp_tn - 1) / lp_tn;
+    wire [`NPU_TIDX_W-1:0] nt_k = (lp_tk == 0) ? {`NPU_TIDX_W{1'b0}} :
+                                   (lp_k + lp_tk - 1) / lp_tk;
+    wire [`NPU_DIM_W-1:0] rem_m = lp_m - tile_i * lp_tm;
+    wire [`NPU_DIM_W-1:0] rem_n = lp_n - tile_j * lp_tn;
+    wire [`NPU_DIM_W-1:0] rem_k = lp_k - tile_k * lp_tk;
 
-    loop_counters_tile_status u_loop_counters(
-        .tile_i(tile_i), .tile_j(tile_j), .tile_k(tile_k),
-        .lp_m(lp_m), .lp_n(lp_n), .lp_k(lp_k),
-        .lp_tm(lp_tm), .lp_tn(lp_tn), .lp_tk(lp_tk),
-        .first_k_tile(first_k_tile), .last_k_tile(last_k_tile),
-        .last_output_tile(last_output_tile),
-        .valid_tm(valid_tm), .valid_tn(valid_tn), .valid_tk(valid_tk)
-    );
+    always @(*) begin
+        first_k_tile     = (tile_k == 5'd0);
+        last_k_tile      = (tile_k + 5'd1 >= nt_k);
+        last_output_tile = (tile_i + 5'd1 >= nt_i) &&
+                           (tile_j + 5'd1 >= nt_j);
+        valid_tm = (rem_m > {3'd0, lp_tm}) ? lp_tm : rem_m[`NPU_TILE_W-1:0];
+        valid_tn = (rem_n > {3'd0, lp_tn}) ? lp_tn : rem_n[`NPU_TILE_W-1:0];
+        valid_tk = (rem_k > {1'b0, lp_tk}) ? lp_tk : rem_k[`NPU_TK_W-1:0];
+    end
 
     // ---- tile 基地址 ----
-    wire [`NPU_ABUF_AW-1:0] a_base;
-    wire [`NPU_BBUF_AW-1:0] bt_base;
-    wire [`NPU_CBASE_W-1:0] c_base;
-
-    block_addr_gen u_block_addr_gen(
-        .tile_i(tile_i), .tile_j(tile_j), .tile_k(tile_k),
-        .lp_n(lp_n), .lp_k(lp_k), .lp_tm(lp_tm), .lp_tn(lp_tn), .lp_tk(lp_tk),
-        .a_base(a_base), .bt_base(bt_base), .c_base(c_base)
-    );
+    wire [`NPU_ABUF_AW-1:0] a_base = tile_i * lp_k + tile_k * lp_tk;
+    wire [`NPU_BBUF_AW-1:0] bt_base = tile_j * lp_k + tile_k * lp_tk;
+    wire [`NPU_CBASE_W-1:0] c_base = (tile_i * lp_tm) * lp_n + tile_j * lp_tn;
 
     // ---- 主状态机 ----
     // acc_tile_clear 必须在每个输出 Tile 开始时产生，不能只依赖 first_k_tile，
     // 因为切换 tile_i/tile_j 时也需要清除上一块 C 的部分和。
-    wire prefetch_go, ph_array_start, feed_go, drain_en, write_go, feed_last;
+    wire prefetch_go, ph_array_start, feed_go, drain_en, write_go;
     wire fsm_done, err_abort;
     wire pair_fire;
     wire write_done;               // c_tile_write_ctrl 完成
@@ -149,22 +176,22 @@ module npu_ctrl(
         .sched_init(sched_init), .next_k_req(next_k_req), .next_out_req(next_out_req),
         .acc_tile_clear(acc_tile_clear), .prefetch_go(prefetch_go),
         .ph_array_start(ph_array_start), .feed_go(feed_go), .drain_en(drain_en),
-        .write_go(write_go), .feed_last(feed_last),
+        .write_go(write_go),
         .fsm_done(fsm_done), .err_abort(err_abort),
         .error_code(error_code_w), .core_busy(core_busy_w)
     );
 
     // ---- A/BT 读流控制 ----
-    a_stream_ctrl u_a_stream_ctrl(
+    npu_stream_ctrl u_a_stream_ctrl(
         .clk(clk), .rst(rst),
-        .a_base(a_base), .valid_tk(valid_tk), .prefetch_go(prefetch_go),
-        .a_addr(a_addr_w), .a_re(a_re_w)
+        .base(a_base), .len(valid_tk), .go(prefetch_go),
+        .rd_addr(a_addr_w), .rd_re(a_re_w)
     );
 
-    bt_stream_ctrl u_bt_stream_ctrl(
+    npu_stream_ctrl u_bt_stream_ctrl(
         .clk(clk), .rst(rst),
-        .bt_base(bt_base), .valid_tk(valid_tk), .prefetch_go(prefetch_go),
-        .bt_addr(bt_addr_w), .bt_re(bt_re_w)
+        .base(bt_base), .len(valid_tk), .go(prefetch_go),
+        .rd_addr(bt_addr_w), .rd_re(bt_re_w)
     );
 
     // ---- 成对送数 ----
@@ -179,13 +206,11 @@ module npu_ctrl(
         .bt_stream_valid(bt_stream_valid_w), .bt_stream_data(bt_stream_data_w)
     );
 
-    // ---- 阵列周期级控制 ----
-    array_ctrl u_array_ctrl(
-        .ph_array_start(ph_array_start), .feed_go(feed_go), .drain_en(drain_en),
-        .feed_last(feed_last),
-        .array_start(array_start_w), .array_enable(array_enable_w),
-        .array_clear_acc(array_clear_acc_w), .array_flush(array_flush_w)
-    );
+    // ---- 阵列周期级控制：直接由 FSM 阶段信号组合译码 ----
+    assign array_start_w     = ph_array_start;
+    assign array_enable_w    = feed_go || drain_en;
+    assign array_clear_acc_w = ph_array_start;
+    assign array_flush_w     = drain_en;
 
     // ---- C tile 累加 -> 量化 -> 写回 ----
     wire [3:0]  acc_rd_idx;

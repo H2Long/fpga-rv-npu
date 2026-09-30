@@ -17,7 +17,7 @@ module c_write_fifo(
     input [31:0] wdata,
     output reg        ready,          // !full
     output reg        empty,
-    // 到 c_buffer RAM
+    // 到 npu_buffer 内部的 C RAM
     output reg        ram_we,
     output reg [`NPU_CBUF_AW-1:0] ram_addr,
     output reg [31:0] ram_wdata,

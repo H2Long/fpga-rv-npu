@@ -19,7 +19,7 @@ module systolic_fsm(
     input        cfg_ok,
     input [`NPU_ERR_W-1:0] chk_err_code,
     input        core_done,          // done_ctrl 已发出 core_done
-    // 边界/调度状态(loop_counters_tile_status)
+    // 边界/调度状态(由 npu_ctrl 内部组合逻辑派生)
     input        first_k_tile,
     input        last_k_tile,
     input        last_output_tile,
@@ -28,7 +28,7 @@ module systolic_fsm(
     input [`NPU_FIFO_AW:0] a_fifo_count, bt_fifo_count,
     // 喂数节拍(pair_stream_ctrl)
     input        pair_fire,
-    // MAC 状态(mac_status)
+    // MAC 状态(collect_done 直接作为 array_done)
     input        array_done,
     // C 写回状态(c_tile_write_ctrl)
     input        write_done,
@@ -42,7 +42,6 @@ module systolic_fsm(
     output reg         feed_go,
     output reg         drain_en,
     output reg         write_go,
-    output reg         feed_last,          // 最后一对 A/BT 正在送入
     output reg        fsm_done,
     output reg         err_abort,
     output reg  [`NPU_ERR_W-1:0] error_code,
@@ -84,14 +83,14 @@ module systolic_fsm(
             sched_init <= 1'b0; next_k_req <= 1'b0; next_out_req <= 1'b0;
             acc_tile_clear <= 1'b0; prefetch_go <= 1'b0;
             ph_array_start <= 1'b0; feed_go <= 1'b0; drain_en <= 1'b0;
-            write_go <= 1'b0; feed_last <= 1'b0; err_abort <= 1'b0;
+            write_go <= 1'b0; err_abort <= 1'b0;
             error_code <= `NPU_ERR_NONE;
             feed_cnt <= 6'd0;
         end else begin
             // 默认单拍信号清零；电平信号在各状态分支中显式拉高。
             sched_init <= 1'b0; next_k_req <= 1'b0; next_out_req <= 1'b0;
             acc_tile_clear <= 1'b0; ph_array_start <= 1'b0;
-            err_abort <= 1'b0; feed_last <= 1'b0;
+            err_abort <= 1'b0;
 
             case (state)
                 S_IDLE: begin
@@ -148,7 +147,6 @@ module systolic_fsm(
                     if (pair_fire) begin
                         feed_cnt <= feed_cnt + 6'd1;
                         if (feed_beat_done) begin
-                            feed_last <= 1'b1;
                             feed_go   <= 1'b0;
                             state     <= S_ARRAY_DRAIN;
                         end

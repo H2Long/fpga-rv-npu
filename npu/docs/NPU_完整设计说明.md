@@ -1,6 +1,6 @@
 # NPU INT8 矩阵乘法加速器 — RTL 实现说明
 
-本文档对应 `npu/` 目录下的完整 RTL 实现，是当前 NPU 设计、接口、模块职责、时序和验证信息的唯一说明入口。内容以当前 `rtl/`、`tb/` 和 `scripts/` 为准，共覆盖 45 个 RTL 文件。
+本文档对应 `npu/` 目录下的完整 RTL 实现，是当前 NPU 设计、接口、模块职责、时序和验证信息的唯一说明入口。内容以当前 `rtl/`、`tb/` 和 `scripts/` 为准。
 
 ## 1. 功能
 
@@ -17,7 +17,7 @@
 
 ```text
 npu/
-├── rtl/                     45 个 Verilog-2001 文件，按功能平面分组
+├── rtl/                     精简后的 Verilog-2001 文件，按功能平面分组
 │   ├── common/               公共宏定义、RAM、FIFO 和流控制
 │   ├── top/                  系统顶层和 CPU/MMIO 控制
 │   ├── ctrl/                 Tile 调度、阵列时序和 C 写回
@@ -33,7 +33,7 @@ npu/
 └── figures/                 三张 PNG + SVG
 ```
 
-45 个 RTL 文件包含系统顶层、功能模块和通用基元；另有公共宏头文件 `npu_defines.vh`。
+RTL 文件包含系统顶层、功能模块和通用基元；A/BT/C 存储、FIFO 和读流统一复用参数化基础模块。
 
 ## 3. MMIO 寄存器
 
@@ -72,23 +72,23 @@ tile 基地址:`A 字基址 = tile_i*K + tile_k*TK`,`BT 字基址 = tile_j*K + t
 
 ## 5. 一个 K-tile 的时序
 
-1. `PREFETCH_INPUT`:A/BT stream_ctrl 连续发 `valid_tk` 个同步 RAM 读,数据入两个预取 FIFO
+1. `PREFETCH_INPUT`:两个 `npu_stream_ctrl` 实例连续发 `valid_tk` 个同步 RAM 读,数据入两个预取 FIFO
 2. `ARRAY_START`:PE 累加器清零、冲刷残留波前
 3. `ARRAY_FEED`:`pair_stream_ctrl` 每拍弹出 A/BT 各一字,成对送入(任一侧无效即等待)
 4. skew 管线:行 r 延迟 r 拍、列 c 延迟 c 拍 ⇒ A[r][k] 与 BT[c][k] 恰在 PE[r][c] 同拍相遇
 5. `ARRAY_DRAIN`:继续推进 P+Q-2 = 6 个使能拍,波前走完最远端
-6. 结果收集:16 拍串行输出 `c_result/c_scan_index/c_result_valid`，随后产生 `collect_done`，由 `c_tile_acc_ctrl` 装入或累加
+6. 结果收集:16 拍串行输出 `c_result/c_scan_index/c_result_valid`，随后产生 `collect_done`；`scan_index` 直接作为 `c_result_index`，由 `c_tile_acc_ctrl` 装入或累加
 7. 最后一个 K tile 完成后:量化(舍入右移 + 饱和)→ 逐项入 `c_write_fifo` → 写入 C RAM
 8. `done_ctrl` 统计真正落 RAM 的写数,达到 M*N 且全部 tile 结束才发 `core_done`
 
 ## 6. 仿真结果(Icarus Verilog 13.0,10 ns 时钟)
 
 ```text
-T1_单tile_4x4x4      PASS : M=4  N=4  K=4  TM=TN=4 TK=4 q=0 | C 写 16  项, 计算耗时 76   周期
-T2_满规模_16x16x16   PASS : M=16 N=16 K=16 TM=TN=4 TK=4 q=0 | C 写 256 项, 计算耗时 3100 周期
-T3_边界_6x7x9        PASS : M=6  N=7  K=9  TM=TN=4 TK=3 q=0 | C 写 42  项, 计算耗时 584  周期
-T4_小tile_5x5x6      PASS : M=5  N=5  K=6  TM=2 TN=3 TK=3 q=0 | C 写 25 项, 计算耗时 624  周期
-T5_量化_8x8x8_q2     PASS : M=8  N=8  K=8  TM=TN=4 TK=8 q=2 | C 写 64  项, 计算耗时 300  周期
+T1_单tile_4x4x4      PASS : M=4  N=4  K=4  TM=TN=4 TK=4 q=0 | C 写 16  项, 计算耗时 72   周期
+T2_满规模_16x16x16   PASS : M=16 N=16 K=16 TM=TN=4 TK=4 q=0 | C 写 256 项, 计算耗时 3036 周期
+T3_边界_6x7x9        PASS : M=6  N=7  K=9  TM=TN=4 TK=3 q=0 | C 写 42  项, 计算耗时 572  周期
+T4_小tile_5x5x6      PASS : M=5  N=5  K=6  TM=2 TN=3 TK=3 q=0 | C 写 25 项, 计算耗时 612  周期
+T5_量化_8x8x8_q2     PASS : M=8  N=8  K=8  TM=TN=4 TK=8 q=2 | C 写 64  项, 计算耗时 296  周期
 T6_零维错误          PASS : DONE+ERROR, ERR_CODE=1
 T7_超容量错误        PASS : DONE+ERROR, ERR_CODE=3
 T8_TM为零错误        PASS : DONE+ERROR, ERR_CODE=2
@@ -117,8 +117,8 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
    导致 Buffer 读写目标错乱(读回的是状态寄存器值)。
 2. **CPU 请求重复接收**:总线模型在 `cpu_ready` 后多保持一拍 `cpu_valid`,`mmio_if` 在 IDLE
    态会把它当新请求重复锁存,所有读结果错位一格。约定:**采样到 ready 的同一拍撤下 valid**。
-3. **顶层写数据断线**:历史版本中 `cpu_port_ctrl` 的字节屏蔽写数据没有正确送到 Buffer RAM。
-   当前版本由 `npu_top` 的组合输出桥接统一送出 `cpu_a_wdata/cpu_bt_wdata/cpu_c_wdata`，并由仿真覆盖。
+3. **顶层写数据断线**:历史版本中 CPU Buffer 写数据经过多个适配层，曾出现字节屏蔽数据未送到 RAM 的问题。
+   当前版本由 `buffer_access_ctrl` 直接完成仲裁和字节屏蔽，统一送出 `cpu_a_wdata/cpu_bt_wdata/cpu_c_wdata`，并由仿真覆盖。
 4. **k-tile 间 feed_cnt 未清零**:NEXT_K 路径不经过 CLEAR_C_TILE,残留计数值使第二个及
    以后的 K tile 只喂 1 对数据就误判"喂数完成"。改为在 PREFETCH_INPUT 态重置。
 5. **量化符号扩展**:32 位累加值赋给 64 位中间量时被零扩展,负数右移结果全错,
@@ -134,7 +134,7 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 
 ## 10. 全部 RTL 模块清单
 
-当前 `rtl/` 有 45 个 Verilog 文件：1 个系统顶层、44 个功能模块，以及公共宏定义头文件。下面按数据平面列出每个模块的责任。
+当前 `rtl/` 为精简后的模块集合：控制中心内联参数检查、Tile 边界、基地址和阵列阶段译码；下面按数据平面列出保留模块的责任。
 
 ### 10.1 系统与 CPU 控制平面
 
@@ -143,27 +143,19 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 | `npu_system` | `npu_system.v` | 连接四个平面，提供 CPU MMIO 顶层端口 |
 | `npu_top` | `npu_top.v` | CPU 控制平面总封装 |
 | `mmio_if` | `mmio_if.v` | 锁存请求、复用读响应、产生 `cpu_ready` |
-| `addr_decoder` | `addr_decoder.v` | 控制/状态/A/BT/C 地址译码 |
 | `control_regs` | `control_regs.v` | M/N/K、TM/TN/TK、qshift 和命令寄存器 |
-| `status_regs` | `status_regs.v` | BUSY、DONE、ERROR、BUFFER_READY、ERR_CODE |
 | `start_ctrl` | `start_ctrl.v` | 启动脉冲、参数锁存、任务完成状态 |
-| `buffer_access_ctrl` | `buffer_access_ctrl.v` | CPU 与 NPU Buffer 端口仲裁 |
+| `buffer_access_ctrl` | `buffer_access_ctrl.v` | 地址窗口、CPU/NPU 仲裁、字节屏蔽和 RAM 端口 |
 
 ### 10.2 调度与 C 写回平面
 
 | 模块 | 文件 | 责任 |
 |---|---|---|
 | `npu_ctrl` | `npu_ctrl.v` | 调度中心，连接全部控制子模块 |
-| `tile_param_latch` | `tile_param_latch.v` | 启动时锁存任务参数 |
-| `config_checker` | `config_checker.v` | 检查尺寸、Tile、TK 和容量 |
 | `tile_scheduler` | `tile_scheduler.v` | 维护 `tile_i/tile_j/tile_k` |
-| `loop_counters_tile_status` | `loop_counters_tile_status.v` | 首尾 Tile 和边界有效尺寸 |
-| `block_addr_gen` | `block_addr_gen.v` | 生成 A、BT、C Tile 基地址 |
 | `systolic_fsm` | `systolic_fsm.v` | 预取、喂数、排空、累加、写回状态机 |
-| `a_stream_ctrl` | `a_stream_ctrl.v` | 发出 A RAM 读请求 |
-| `bt_stream_ctrl` | `bt_stream_ctrl.v` | 发出 BT RAM 读请求 |
+| `npu_stream_ctrl` | `common/npu_stream_ctrl.v` | A/BT 共用的连续读地址控制 |
 | `pair_stream_ctrl` | `pair_stream_ctrl.v` | A/BT FIFO 成对弹出 |
-| `array_ctrl` | `array_ctrl.v` | 阵列 start/enable/clear/flush；`feed_last` 仅保留为兼容/波形信号 |
 | `c_tile_acc_ctrl` | `c_tile_acc_ctrl.v` | 保存并累加一个 C Tile 的部分和 |
 | `c_tile_write_ctrl` | `c_tile_write_ctrl.v` | 生成 C 地址、数据和写有效 |
 | `done_ctrl` | `done_ctrl.v` | 统计真正落 RAM 的 C 写操作 |
@@ -173,13 +165,8 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 | 模块 | 文件 | 责任 |
 |---|---|---|
 | `npu_buffer` | `npu_buffer.v` | A/BT/C RAM、FIFO 和状态的总封装 |
-| `npu_read_port_ctrl` | `npu_read_port_ctrl.v` | 同步 RAM 返回到预取 FIFO |
-| `cpu_port_ctrl` | `cpu_port_ctrl.v` | CPU 局部端口到 RAM 端口的转换 |
-| `a_buffer` | `a_buffer.v` | 64x32 bit A RAM |
-| `bt_buffer` | `bt_buffer.v` | 64x32 bit BT RAM |
-| `c_buffer` | `c_buffer.v` | 256x32 bit C RAM |
-| `a_prefetch_fifo` | `a_prefetch_fifo.v` | A 数据预取 FIFO |
-| `bt_prefetch_fifo` | `bt_prefetch_fifo.v` | BT 数据预取 FIFO |
+| `npu_ram` | `common/npu_ram.v` | 参数化 A/BT/C 同步 RAM |
+| `npu_sync_fifo` | `common/npu_sync_fifo.v` | 参数化 A/BT 预取和 C 写 FIFO 基元 |
 | `c_write_fifo` | `c_write_fifo.v` | C 写请求 FIFO |
 
 ### 10.4 MAC 与脉动阵列平面
@@ -187,16 +174,13 @@ python scripts/draw_wave.py             # T1 运行波形图(需先跑过仿真�
 | 模块 | 文件 | 责任 |
 |---|---|---|
 | `npu_mac` | `npu_mac.v` | MAC 平面总封装 |
-| `a_input_unpacker` | `a_input_unpacker.v` | A 32 位字拆成 4 个 INT8 lane |
-| `bt_input_unpacker` | `bt_input_unpacker.v` | BT 32 位字拆成 4 个 INT8 lane |
+| `input_unpacker` | `input_unpacker.v` | A/BT 共用的 32 位字拆包器 |
 | `a_bt_skew_pipeline` | `a_bt_skew_pipeline.v` | 行/列波前延迟和 valid 对齐 |
 | `pe_array` | `pe_array.v` | 4x4 PE 互连 |
 | `pe_cell` | `pe_cell.v` | 有符号 INT8 乘加和数据转发 |
 | `drain_controller` | `drain_controller.v` | 阵列排空计时 |
 | `tile_result_collector` | `tile_result_collector.v` | 收集 16 个 PE 累加结果 |
-| `output_reorder` | `output_reorder.v` | 物理扫描序转 C 行主序 |
 | `result_quantizer` | `result_quantizer.v` | 舍入、右移和饱和 |
-| `mac_status` | `mac_status.v` | 将 `collect_done` 转换为单拍 `array_done` |
 
 ### 10.5 通用基元
 
@@ -277,16 +261,16 @@ A/BT 一个 32 位字装四个连续行/列的 INT8。C 一个 32 位字保存�
 2. CPU 写 M/N/K、TM/TN/TK 和 qshift。
 3. CPU 写 CTRL.start。
 4. start_ctrl 锁存参数，产生 start_pulse。
-5. config_checker 检查参数。
+5. npu_ctrl 内部组合逻辑检查参数。
 6. tile_scheduler 选择 tile_i/tile_j/tile_k。
-7. block_addr_gen 计算 A/BT/C tile 地址。
-8. a_stream_ctrl/bt_stream_ctrl 预取 valid_tk 个字。
+7. npu_ctrl 内部组合逻辑计算 A/BT/C tile 地址。
+8. 两个 npu_stream_ctrl 实例预取 valid_tk 个字。
 9. RAM 返回数据进入 A/BT prefetch FIFO。
 10. pair_stream_ctrl 成对弹出 A/BT。
 11. unpacker 拆出 4+4 个 INT8，skew pipeline 注入波前。
 12. PE 阵列执行乘加，A 向右、BT 向下传播。
 13. array_flush 后等待 P+Q-2 及流水线附加周期。
-14. collector/reorder 串行输出 16 个结果。
+14. collector 串行输出 16 个结果，扫描下标直接作为逻辑结果索引。
 15. c_tile_acc_ctrl 沿 tile_k 累加。
 16. 最后一个 K tile 经 result_quantizer 处理后进入 C 写 FIFO。
 17. C 写 FIFO 将有效 C 元素写入 C Buffer。
@@ -308,11 +292,11 @@ A/BT 一个 32 位字装四个连续行/列的 INT8。C 一个 32 位字保存�
 
 | 用例 | 覆盖点 | 结果 |
 |---|---|---|
-| 4x4x4 | 单 Tile 基本乘法 | PASS，76 周期 |
-| 16x16x16 | 多输出 Tile、多个 K Tile 累加 | PASS，3100 周期 |
-| 6x7x9 | M/N/K 非 Tile 整数倍、补零 | PASS，584 周期 |
-| 5x5x6 | TM=2、TN=3 的非标准 Tile | PASS，624 周期 |
-| 8x8x8 q2 | 负数、舍入、右移和饱和 | PASS，300 周期 |
+| 4x4x4 | 单 Tile 基本乘法 | PASS，72 周期 |
+| 16x16x16 | 多输出 Tile、多个 K Tile 累加 | PASS，3036 周期 |
+| 6x7x9 | M/N/K 非 Tile 整数倍、补零 | PASS，572 周期 |
+| 5x5x6 | TM=2、TN=3 的非标准 Tile | PASS，612 周期 |
+| 8x8x8 q2 | 负数、舍入、右移和饱和 | PASS，296 周期 |
 | M=0 | 尺寸检查 | PASS，ERR_CODE=1 |
 | Buffer 超容量 | 容量检查 | PASS，ERR_CODE=3 |
 

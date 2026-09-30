@@ -8,8 +8,7 @@
 //
 // start_ctrl 在 start_req 到来时锁存配置并产生 start_pulse，运行期间软件
 // 再写配置寄存器不会修改当前任务使用的参数。
-// 内含模块：mmio_if / addr_decoder / control_regs / status_regs /
-//           start_ctrl / buffer_access_ctrl / cpu_port_ctrl
+// 内含模块：mmio_if / control_regs / start_ctrl / buffer_access_ctrl
 `include "npu_defines.vh"
 
 module npu_top(
@@ -57,7 +56,8 @@ module npu_top(
     wire [`NPU_CBUF_AW-1:0] c_local_addr;
     wire [2:0]  ctrl_reg_off;
 
-    wire [31:0] control_rdata, status_rdata, buffer_rdata_w;
+    wire [31:0] control_rdata, buffer_rdata_w;
+    wire [31:0] status_rdata;
 
     // start_ctrl 的锁存参数：任务开始后由 m_l..qs_l 保持到任务结束。
     wire [`NPU_DIM_W-1:0]  m_l, n_l, k_l;
@@ -67,16 +67,7 @@ module npu_top(
     wire        busy_status, done_status;
     wire        start_req, clear_done_req;
 
-    // cpu_port_ctrl 输出的 RAM 端口
-    wire [`NPU_ABUF_AW-1:0] ram_a_addr;
-    wire [`NPU_BBUF_AW-1:0] ram_bt_addr;
-    wire [`NPU_CBUF_AW-1:0] ram_c_addr;
-    wire        ram_a_we, ram_a_re, ram_bt_we, ram_bt_re, ram_c_we, ram_c_re;
-    wire [31:0] ram_a_wdata, ram_bt_wdata, ram_c_wdata;
-
-    // buffer_access_ctrl -> cpu_port_ctrl 的数据/字节使能
-    wire [31:0] cpu_buf_wdata;
-    wire [3:0]  cpu_buf_byte_en;
+    // Buffer 端口控制器直接输出经过字节屏蔽的 RAM 端口。
     wire [31:0] cpu_rdata_w;
     wire        cpu_ready_w;
     wire        start_pulse_w;
@@ -85,6 +76,7 @@ module npu_top(
     wire [`NPU_ABUF_AW-1:0] cpu_a_addr_w;
     wire [`NPU_BBUF_AW-1:0] cpu_bt_addr_w;
     wire [`NPU_CBUF_AW-1:0] cpu_c_addr_w;
+    wire [31:0] cpu_a_wdata_w, cpu_bt_wdata_w, cpu_c_wdata_w;
 
     // ---- mmio_if ----
     mmio_if u_mmio_if(
@@ -99,14 +91,17 @@ module npu_top(
         .buffer_rdata(buffer_rdata_w)
     );
 
-    // ---- addr_decoder：对锁存地址进行组合译码 ----
-    addr_decoder u_addr_decoder(
-        .req_addr(req_addr),
-        .sel_ctrl(sel_ctrl), .sel_status(sel_status), .sel_buffer(sel_buffer),
-        .sel_a_buf(sel_a_buf), .sel_bt_buf(sel_bt_buf), .sel_c_buf(sel_c_buf),
-        .a_local_addr(a_local_addr), .bt_local_addr(bt_local_addr),
-        .c_local_addr(c_local_addr), .ctrl_reg_off(ctrl_reg_off)
-    );
+    // ---- MMIO 地址译码：req_addr 已由 mmio_if 锁存 ----
+    assign sel_ctrl   = (req_addr[31:5] == 27'd0);
+    assign sel_status = (req_addr[31:5] == 27'd1);
+    assign sel_a_buf  = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h1);
+    assign sel_bt_buf = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h2);
+    assign sel_c_buf  = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h3);
+    assign sel_buffer = sel_a_buf | sel_bt_buf | sel_c_buf;
+    assign a_local_addr  = req_addr[7:2];
+    assign bt_local_addr = req_addr[7:2];
+    assign c_local_addr  = req_addr[9:2];
+    assign ctrl_reg_off  = req_addr[4:2];
 
     // control_regs 的实时配置值，仅供 start_ctrl 在启动瞬间采样。
     wire [`NPU_DIM_W-1:0]  cr_m, cr_n, cr_k;
@@ -126,16 +121,10 @@ module npu_top(
         .control_rdata(control_rdata)
     );
 
-    // ---- status_regs ----
-    status_regs u_status_regs(
-        .req_we(req_we),
-        .ctrl_reg_off(ctrl_reg_off),
-        .busy_i(busy_status), .done_i(done_status),
-        .error_i(error_code != `NPU_ERR_NONE),
-        .buffer_ready_i(buffer_ready_i),
-        .error_code_i(error_code),
-        .status_rdata(status_rdata)
-    );
+    // ---- 状态寄存器读数据 ----
+    assign status_rdata = (ctrl_reg_off == 3'd0) ?
+        {28'd0, buffer_ready_i, (error_code != `NPU_ERR_NONE), done_status, busy_status} :
+        {24'd0, error_code};
 
     // ---- start_ctrl ----
     start_ctrl u_start_ctrl(
@@ -162,23 +151,9 @@ module npu_top(
         .cpu_bt_we(cpu_bt_we_w), .cpu_bt_re(cpu_bt_re_w),
         .cpu_c_we(cpu_c_we_w), .cpu_c_re(cpu_c_re_w),
         .cpu_a_addr(cpu_a_addr_w), .cpu_bt_addr(cpu_bt_addr_w), .cpu_c_addr(cpu_c_addr_w),
-        .cpu_buf_wdata(cpu_buf_wdata), .cpu_buf_byte_en(cpu_buf_byte_en),
+        .cpu_a_wdata(cpu_a_wdata_w), .cpu_bt_wdata(cpu_bt_wdata_w), .cpu_c_wdata(cpu_c_wdata_w),
         .a_rdata_cpu(a_rdata_cpu), .bt_rdata_cpu(bt_rdata_cpu),
         .c_rdata_cpu(c_rdata_cpu), .buffer_rdata(buffer_rdata_w)
-    );
-
-    // ---- cpu_port_ctrl ----
-    cpu_port_ctrl u_cpu_port_ctrl(
-        .cpu_a_we(cpu_a_we_w), .cpu_a_re(cpu_a_re_w),
-        .cpu_bt_we(cpu_bt_we_w), .cpu_bt_re(cpu_bt_re_w),
-        .cpu_c_we(cpu_c_we_w), .cpu_c_re(cpu_c_re_w),
-        .cpu_a_addr(cpu_a_addr_w), .cpu_bt_addr(cpu_bt_addr_w), .cpu_c_addr(cpu_c_addr_w),
-        .cpu_buf_wdata(cpu_buf_wdata), .cpu_buf_byte_en(cpu_buf_byte_en),
-        .ram_a_addr(ram_a_addr), .ram_bt_addr(ram_bt_addr), .ram_c_addr(ram_c_addr),
-        .ram_a_we(ram_a_we), .ram_a_re(ram_a_re),
-        .ram_bt_we(ram_bt_we), .ram_bt_re(ram_bt_re),
-        .ram_c_we(ram_c_we), .ram_c_re(ram_c_re),
-        .ram_a_wdata(ram_a_wdata), .ram_bt_wdata(ram_bt_wdata), .ram_c_wdata(ram_c_wdata)
     );
 
     always @(*) begin
@@ -201,11 +176,9 @@ module npu_top(
         cpu_a_addr = cpu_a_addr_w;
         cpu_bt_addr = cpu_bt_addr_w;
         cpu_c_addr = cpu_c_addr_w;
-        // cpu_port_ctrl 输出的按字节使能屏蔽后的写数据桥接到对外 RAM 端口。
-        // 这三条连接不能省略，否则 RAM 写入端会拿不到 CPU 的数据。
-        cpu_a_wdata = ram_a_wdata;
-        cpu_bt_wdata = ram_bt_wdata;
-        cpu_c_wdata = ram_c_wdata;
+        cpu_a_wdata = cpu_a_wdata_w;
+        cpu_bt_wdata = cpu_bt_wdata_w;
+        cpu_c_wdata = cpu_c_wdata_w;
     end
 
 endmodule
