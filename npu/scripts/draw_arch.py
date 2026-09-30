@@ -93,8 +93,8 @@ BW, BH = 12.5, 4.6
 box(13,   6.4, BW, BH, "mmio_if",           "MMIO 总线入口", C_TOP_BD)
 box(28.5, 6.4, BW, BH, "npu_top.decode",     "地址译码", C_TOP_BD, fs=8.0)
 box(44,   6.4, BW, BH, "control_regs",      "配置寄存器", C_TOP_BD)
-box(59.5, 6.4, BW, BH, "start_ctrl",        "任务生命周期", C_TOP_BD)
-box(28.5, 14.2, BW, BH, "npu_top.status",   "BUSY/DONE", C_TOP_BD, fs=8.0)
+box(59.5, 6.4, BW, BH, "start_ctrl",      "生命周期+配置校验", C_TOP_BD, fs=7.4)
+box(28.5, 14.2, BW, BH, "npu_top.status",  "BUSY/DONE/ERROR", C_TOP_BD, fs=7.4)
 box(44,   14.2, BW, BH, "buffer_access_ctrl", "仲裁/字节屏蔽/RAM端口", C_TOP_BD, fs=7.2)
 ax.text(76.5, 8.9, "MMIO 映射\n0x0000  控制寄存器\n0x0020  状态寄存器\n0x1000  A Buffer\n0x2000  BT Buffer\n0x3000  C Buffer",
         fontsize=8.5, color="#3D648C", va="center", ha="left", zorder=4, linespacing=1.55,
@@ -104,20 +104,20 @@ ax.text(76.5, 8.9, "MMIO 映射\n0x0000  控制寄存器\n0x0020  状态寄存�
 CBW = 13.5
 box(4,   25.5, CBW, BH + 1.1, "tile_controller.config", "参数快照复用", C_CTRL_BD, fs=7.0)
 box(4,   32.3, CBW, BH, "tile_controller.bounds",   "边界尺寸派生", C_CTRL_BD, fs=7.8)
-box(4,   39.1, CBW, BH, "tile_scheduler",   "i/j/k 三层循环", C_CTRL_BD, fs=8.2)
+box(4,   39.1, CBW, BH, "tile_controller.tile_loop",   "i/j/k 三层循环", C_CTRL_BD, fs=7.0)
 box(4,   45.9, CBW, BH + 1.1, "tile_controller.addr", "A/BT/C 基地址", C_CTRL_BD, fs=7.0)
 box(20.5, 25.5, CBW, BH, "npu_stream_ctrl",  "A/BT 共用读流", C_CTRL_BD, fs=8.0)
-box(20.5, 32.3, CBW, 10.2, "systolic_fsm",  "13 态主状态机\n预取→喂数→排空→收→写", C_CTRL_BD, fs=9.8)
+box(20.5, 32.3, CBW, 10.2, "systolic_fsm",  "7 态主状态机\n清累加→预取→喂数→排空", C_CTRL_BD, fs=9.8)
 ax.add_patch(FancyBboxPatch((20.5, 32.3), CBW, 10.2,
     boxstyle="round,pad=0.06,rounding_size=0.35", fc="none", ec=C_CTRL,
     lw=1.0, ls=(0, (2.2, 2.0)), zorder=3.5))
-box(20.5, 45.9, CBW, BH, "c_tile_acc_ctrl", "K 向累加 16×32b", C_CTRL_BD, fs=7.8)
-box(20.5, 52.0, CBW, BH, "done_ctrl",       "core_done 判定", C_CTRL_BD, fs=8.2)
+box(20.5, 45.9, CBW, BH, "c_tile_write_ctrl", "快照+扫描写回", C_CTRL_BD, fs=7.0)
+box(20.5, 52.0, CBW, BH, "tile_controller.done_count",       "core_done 判定", C_CTRL_BD, fs=7.0)
 box(37, 25.5, CBW, BH, "npu_stream_ctrl",     "A 读流实例", C_CTRL_BD, fs=8.2)
 box(37, 32.3, CBW, BH, "npu_stream_ctrl",    "BT 读流实例", C_CTRL_BD, fs=8.2)
-box(37, 39.1, CBW, BH, "pair_stream_ctrl",  "A/BT 成对送数", C_CTRL_BD, fs=7.8)
+box(37, 39.1, CBW, BH, "tile_controller.pair",  "A/BT 成对送数", C_CTRL_BD, fs=7.8)
 box(37, 45.9, CBW, BH, "FSM 组合译码",        "阵列周期控制", C_CTRL_BD, fs=8.2)
-box(37, 52.0, CBW, BH, "c_tile_write_ctrl", "C 写回/越界过滤", C_CTRL_BD, fs=7.2)
+box(37, 52.0, CBW, BH, "c_write_fifo", "写回解耦+累加", C_CTRL_BD, fs=7.0)
 box(4, 52.0, CBW, BH, "result_quantizer",   "舍入/移位/饱和", C_CTRL_BD, fs=7.4)
 
 # ---------- npu_buffer 模块 ----------
@@ -131,8 +131,8 @@ box(81.5, 39.1, BBW, BH, "c_write_fifo",    "写回解耦", C_BUF_BD, fs=7.8)
 box(63, 45.9, 17.5, BH, "npu_buffer.read_delay", "同步读→FIFO", C_BUF_BD, fs=6.8)
 
 # ---------- npu_mac 模块 ----------
-box(6,  61.6, 13.5, BH, "input_unpacker(A)",  "32b→4×INT8", C_MAC_BD, fs=7.6)
-box(6,  68.6, 13.5, BH, "input_unpacker(BT)", "32b→4×INT8", C_MAC_BD, fs=7.2)
+box(6,  61.6, 13.5, BH, "npu_mac 拆包(A)",  "32b→4×INT8", C_MAC_BD, fs=7.0)
+box(6,  68.6, 13.5, BH, "npu_mac 拆包(BT)", "32b→4×INT8", C_MAC_BD, fs=6.6)
 box(23, 61.6, 14.5, 11.6, "a_bt_skew_pipeline", "A 行 r 延迟 r 拍\nBT 列 c 延迟 c 拍", C_MAC_BD, fs=7.6)
 px, py, pw, ph = 42, 61.6, 17.5, 11.6
 box(px, py, pw, ph, "", "", C_MAC_BD)
@@ -148,9 +148,9 @@ for r in range(4):
 ax.text(px + pw/2, py + ph - 0.8, "acc[r][c] += A[r][k]×BT[c][k]",
         fontsize=7.6, ha="center", color="#57606A", zorder=5)
 box(63, 61.6, 13.5, BH, "drain_controller", "排空 P+Q-2=6 拍", C_MAC_BD, fs=7.4)
-box(63, 68.6, 13.5, BH, "tile_result_collector", "16 结果串行输出", C_MAC_BD, fs=6.4)
-box(79.5, 68.6, 13.5, BH, "collector index", "扫描下标直出", C_MAC_BD, fs=7.5)
-box(79.5, 61.6, 13.5, BH, "collect_done",    "结果完成脉冲", C_MAC_BD, fs=7.0)
+box(63, 68.6, 13.5, BH, "acc_flat 快照源", "16×32b 直接送出", C_MAC_BD, fs=6.6)
+box(79.5, 68.6, 13.5, BH, "c_tile_write_ctrl", "扫描 16 lane", C_CTRL_BD, fs=6.6)
+box(79.5, 61.6, 13.5, BH, "drain_done",    "排空完成+快照", C_MAC_BD, fs=6.6)
 
 # ================= 连线(按接线总表 §7) =================
 # --- CPU <-> mmio_if ---
@@ -186,7 +186,7 @@ wire([(34.0, 39.4), (37.0, 41.4)], C_CTRL)                          # fsm->pair
 wire([(31.9, 39.4), (31.9, 43.4), (43.7, 43.4), (43.7, 45.9)], C_CTRL)  # fsm->组合阵列控制
 wire([(27.2, 42.5), (27.2, 45.9)], C_CTRL)                          # fsm->c_tile_acc
 wire([(29.9, 42.5), (29.9, 52.3), (29.9, 52.3), (30.5, 52.3)], C_CTRL, alpha=0)  # 占位
-wire([(20.5, 33.9), (18.9, 33.9), (18.9, 54.3), (20.5, 54.3)], C_CTRL)  # fsm->done_ctrl
+wire([(20.5, 33.9), (18.9, 33.9), (18.9, 54.3), (20.5, 54.3)], C_CTRL)  # fsm->完成计数
 # --- tile_controller 内部地址生成三色输出 ---
 wire([(34.0, 27.8), (37.0, 27.8)], C_A)                             # -> a_stream
 wlabel(35.5, 26.8, "A 基地址", C_A, fs=6.2)
@@ -206,7 +206,7 @@ wire([(78.5, 27.8), (81.5, 27.8)], C_A)                                     # a_
 wire([(78.5, 34.6), (81.5, 34.6)], C_BT)                                    # bt_buf->fifo
 wire([(81.5, 41.4), (78.5, 41.4)], C_C)                                     # c_fifo->c_buf
 wlabel(80.0, 40.3, "C 写", C_C, fs=6.2)
-# FIFO -> pair_stream_ctrl
+# FIFO -> tile_controller 成对出队
 wire([(81.5, 27.8), (79.2, 27.8), (79.2, 37.2), (59.6, 37.2), (59.6, 40.4), (50.5, 40.4)], C_A)
 wlabel(70.6, 36.4, "a_stream_data / valid", C_A, fs=6.6)
 wire([(81.5, 34.6), (80.1, 34.6), (80.1, 44.6), (60.2, 44.6), (60.2, 41.8), (50.5, 41.8)], C_BT)
@@ -214,7 +214,7 @@ wlabel(70.6, 45.4, "bt_stream_data / valid", C_BT, fs=6.6)
 # c_tile_write_ctrl -> c_write_fifo
 wire([(50.5, 54.3), (57.4, 54.3), (57.4, 47.2), (97.2, 47.2), (97.2, 41.4)], C_C)
 wlabel(77.0, 46.3, "cwr_valid / cwr_addr / cwr_data", C_C, fs=6.8)
-# c_write_fifo -> done_ctrl
+# c_write_fifo -> tile_controller 完成计数
 wire([(89.2, 41.4), (89.2, 55.6), (30.0, 55.6), (30.0, 56.7)], C_STAT, ls=(0, (3, 2)))
 wlabel(60.0, 56.7, "c_wr_pulse(最后一笔真正写入才 core_done)", C_STAT, fs=6.6)
 # --- ctrl -> mac 数据 ---
@@ -226,7 +226,7 @@ wlabel(26.5, 58.2, "BT 数据对(与 A 同拍成对推进)", C_BT, fs=6.6)
 wire([(43.7, 50.5), (43.7, 60.2)], C_CTRL)
 wire([(43.7, 60.2), (43.7, 59.8), (30.2, 59.8), (30.2, 61.6)], C_CTRL, ls=(0, (3, 2)))
 wire([(69.7, 61.6), (69.7, 59.8), (50.7, 59.8), (50.7, 61.6)], C_CTRL, ls=(0, (3, 2)))
-wlabel(45.4, 57.1, "array_start/enable/clear/flush", C_CTRL, fs=6.4, ha="left")
+wlabel(45.4, 57.1, "acc_clear/enable/drain", C_CTRL, fs=6.4, ha="left")
 # --- mac 内部 ---
 wire([(19.5, 63.9), (23.0, 63.9)], C_MIX)
 wire([(19.5, 70.9), (23.0, 70.9)], C_MIX)
@@ -235,12 +235,12 @@ wlabel(39.8, 64.8, "波前", C_MIX, fs=6.6)
 wire([(59.5, 67.4), (63.0, 67.4)], C_C)
 wire([(69.7, 66.2), (69.7, 68.6)], C_CTRL)
 wire([(76.5, 70.9), (79.5, 70.9)], C_C)
-# collector -> c_tile_acc_ctrl
+# acc_flat 快照 -> c_tile_write_ctrl
 wire([(86.2, 68.6), (86.2, 53.6), (59.5, 53.6), (59.5, 48.2), (34.0, 48.2)], C_C)
-wlabel(73.5, 52.7, "c_result / index / valid / last", C_C, fs=6.8)
-# collect_done -> systolic_fsm
+wlabel(73.5, 52.7, "acc_flat[511:0] 快照", C_C, fs=6.8)
+# drain_done -> systolic_fsm / 快照
 wire([(86.2, 61.6), (86.2, 59.2), (46.4, 59.2), (46.4, 40.6), (34.0, 40.6)], C_STAT, ls=(0, (3, 2)))
-wlabel(66.5, 58.4, "collect_done", C_STAT, fs=6.6)
+wlabel(66.5, 58.4, "drain_done", C_STAT, fs=6.6)
 # --- 状态回传 ---
 wire([(10.7, 52.0), (10.7, 21.0), (62.1, 21.0), (62.1, 11.0)], C_STAT)
 wlabel(36.5, 20.3, "core_done", C_STAT, fs=7.2)

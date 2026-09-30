@@ -30,7 +30,9 @@ module mmio_if(
     // 对 req_addr 的组合译码结果(npu_top 内联提供)
     input        sel_ctrl,
     input        sel_status,
-    input        sel_buffer,
+    input        sel_a_buf,
+    input        sel_bt_buf,
+    input        sel_c_buf,
     // 三类读数据源
     input [31:0] control_rdata,
     input [31:0] status_rdata,
@@ -77,10 +79,12 @@ module mmio_if(
                 S_WAIT1: begin
                     if (req_we) begin
                         state <= S_RESP;                    // 写操作到此完成
-                    end else if (sel_buffer) begin
+                    end else if (sel_a_buf || sel_bt_buf || sel_c_buf) begin
                         state <= S_WAIT2;                   // 同步 RAM 读多等一拍
                     end else begin
-                        rdata_q <= sel_ctrl ? control_rdata : status_rdata;
+                        // 未列出的地址属于保留地址，读回 0（见地址与寄存器表）。
+                        rdata_q <= sel_ctrl   ? control_rdata :
+                                   sel_status ? status_rdata  : 32'd0;
                         state   <= S_RESP;
                     end
                 end

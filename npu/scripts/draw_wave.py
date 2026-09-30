@@ -85,16 +85,17 @@ series = {
     "start_pulse":     sig(S + ".u_npu_top.u_start_ctrl", "start_pulse"),
     "core_busy":       sig(S + ".u_tile_controller", "core_busy"),
     "fsm_state":       sig(S + ".u_tile_controller.u_systolic_fsm", "state"),
-    "prefetch_go":     sig(S + ".u_tile_controller", "prefetch_go"),
+    "pf_start":        sig(S + ".u_tile_controller.u_systolic_fsm", "pf_start"),
     "a_fifo_count":    sig(S + ".u_tile_controller", "a_fifo_count"),
     "pair_fire":       sig(S + ".u_tile_controller", "pair_fire"),
-    "array_enable":    sig(S + ".u_npu_mac", "array_enable"),
-    "drain_en":        sig(S + ".u_npu_mac", "drain_en"),
-    "drain_done":      sig(S + ".u_npu_mac.u_drain_controller", "drain_done"),
-    "c_result_valid":  sig(S + ".u_npu_mac", "c_result_valid"),
+    "array_enable":    sig(S + ".u_tile_controller", "array_enable"),
+    "acc_clear":       sig(S + ".u_tile_controller", "acc_clear"),
+    "drain_en":        sig(S + ".u_tile_controller", "drain_en"),
+    "drain_done":      sig(S + ".u_tile_controller", "drain_done"),
+    "cwr_scan":        sig(S + ".u_tile_controller.u_c_tile_write_ctrl", "cwr_valid_out"),
     "cwr_valid":       sig(S + ".u_tile_controller", "cwr_valid"),
     "c_wr_pulse":      sig(S + ".u_npu_buffer.u_c_write_fifo", "c_wr_pulse"),
-    "core_done":       sig(S + ".u_tile_controller.u_done_ctrl", "core_done"),
+    "core_done":       sig(S + ".u_tile_controller", "core_done"),
     "cpu_valid":       sig(S, "cpu_valid"),
 }
 
@@ -145,9 +146,8 @@ def window_vals(ser, t0, t1):
     out.append((t1, out[-1][1] if out else "0"))
     return out
 
-STATE_NAMES = ["IDLE", "CHECK_CFG", "LOAD_PARAM", "CLEAR_C", "PREFETCH",
-               "ARR_START", "FEED", "DRAIN", "RECV", "NEXT_K/W", "WRITE_C",
-               "NEXT_OUT", "DONE"]
+# v2.1 的 7 个状态（S_IDLE/S_INIT/S_CLEAR_ACC/S_PREFETCH/S_FEED/S_DRAIN/S_DONE）
+STATE_NAMES = ["IDLE", "INIT", "CLEAR_ACC", "PREFETCH", "FEED", "DRAIN", "DONE"]
 
 # ---------------- 绘制 ----------------
 rows = [
@@ -155,13 +155,14 @@ rows = [
     ("start_pulse", "start_pulse", "bit"),
     ("core_busy", "core_busy", "bit"),
     ("systolic_fsm.state", "fsm_state", "state"),
-    ("prefetch_go", "prefetch_go", "bit"),
-    ("a_fifo_count[5:0]", "a_fifo_count", "bus"),
+    ("pf_start (K Tile 预取)", "pf_start", "bit"),
+    ("a_fifo_count[6:0]", "a_fifo_count", "bus"),
     ("pair_fire (A/BT 成对)", "pair_fire", "bit"),
     ("array_enable", "array_enable", "bit"),
+    ("acc_clear (每输出 Tile 一次)", "acc_clear", "bit"),
     ("drain_en", "drain_en", "bit"),
     ("drain_done", "drain_done", "bit"),
-    ("c_result_valid (16 项)", "c_result_valid", "bit"),
+    ("cwr_valid_out (快照写回)", "cwr_scan", "bit"),
     ("cwr_valid (写 FIFO)", "cwr_valid", "bit"),
     ("c_wr_pulse (落 C RAM)", "c_wr_pulse", "bit"),
     ("core_done", "core_done", "bit"),

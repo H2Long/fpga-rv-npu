@@ -1,179 +1,175 @@
 `timescale 1ns / 1ps
-// systolic_fsm — 一个输出 Tile 的主时序状态机
+// systolic_fsm — 一次任务的主时序状态机
 //
-// 状态顺序：
-//   IDLE -> CHECK_CONFIG -> LOAD_TILE_PARAM -> CLEAR_C_TILE
-//        -> PREFETCH_INPUT -> ARRAY_START -> ARRAY_FEED -> ARRAY_DRAIN
-//        -> RECEIVE_RESULT -> NEXT_K_OR_WRITE -> WRITE_C_TILE
-//        -> NEXT_OUTPUT_TILE -> DONE
+// 状态与转移（每个输出 Tile 走一遍 K 循环，只在 Tile 结束时排空一次）：
+//   S_IDLE       start_pulse 到来 -> S_INIT
+//   S_INIT       sched_init 复位 tile 计数器 -> S_CLEAR_ACC
+//   S_CLEAR_ACC  清 PE 累加器并启动第一个 K Tile 的预取；
+//                等 cwr_idle（上一块 C 已写完，快照不会被覆盖）-> S_PREFETCH
+//   S_PREFETCH   等 A/BT FIFO 装满当前 K Tile -> S_FEED
+//   S_FEED       成对喂 valid_tk 拍；离开时启动下一个 K Tile 的预取；
+//                最后一个 K Tile -> S_DRAIN，否则 next_k_req -> S_PREFETCH
+//   S_DRAIN      保持阵列推进 P+Q-2 拍让波前走完
+//                -> 最后一个输出 Tile ? S_DONE : S_CLEAR_ACC
+//   S_DONE       等 core_done（最后一块 C 已落入 RAM）-> S_IDLE
 //
-// 每个状态只产生自己负责的控制信号；带 pulse/phase 前缀的输出在时序块
-// 开头默认清零，保证它们只持续一个时钟周期。feed_go、prefetch_go、
-// drain_en、write_go 是状态电平，分别覆盖对应硬件阶段。
+// 关键时序约定：
+//   1. K Tile 之间不清累加器、不排空阵列，阵列在 S_PREFETCH 期间整体冻结。
+//      整条 skew 管线一起冻结会保持所有 lane 的相对偏移，恢复后波前无缝续接，
+//      所以跨 K Tile 的部分和留在 PE 里连续累加，TK 只是延迟/面积参数，
+//      不再是每个 K Tile 都要付一次的排空开销。
+//   2. 预取与喂数重叠：进入 S_FEED 时用 pf_next_start 启动下一个 K Tile 的突发，
+//      S_PREFETCH 只负责等数据到齐，通常可以立刻通过。
+//   3. 排空后结果由 c_tile_write_ctrl 锁存成快照并在后台写回，
+//      状态机不等写回就进入下一个输出 Tile；core_done 才代表全部 C 已落 RAM。
 `include "npu_defines.vh"
 
 module systolic_fsm(
     input        clk,
     input        rst,
     input        start_pulse,
-    input        core_done,          // done_ctrl 已发出 core_done
-    // 边界/调度状态(由 tile_controller 内部组合逻辑派生)
-    input        first_k_tile,
+    input        core_done,          // 全部 C 元素已真正写入 C RAM
     input        last_k_tile,
-    input        last_output_tile,
-    input [`NPU_TK_W-1:0] valid_tk,
-    // 预取状态(npu_buffer FIFO 计数)
-    input [`NPU_FIFO_AW:0] a_fifo_count, bt_fifo_count,
-    // 喂数节拍(pair_stream_ctrl)
+    input        last_out_tile,
+    input [`NPU_TK_W-1:0]  valid_tk,
+    // 预取 FIFO 计数
+    input [`NPU_FIFO_AW:0] a_fifo_count,
+    input [`NPU_FIFO_AW:0] bt_fifo_count,
+    // 喂数节拍(tile_controller 内部成对出队)
     input        pair_fire,
-    // MAC 状态：16 个结果已经全部收集
-    input        collect_done,
-    // C 写回状态(c_tile_write_ctrl)
-    input        write_done,
+    // MAC 排空完成
+    input        drain_done,
+    // C 写回空闲(扫描未进行且写 FIFO 已排空)
+    input        cwr_idle,
     // 输出
-    output reg         sched_init,
-    output reg         next_k_req,
-    output reg         next_out_req,
-    output reg         acc_tile_clear,     // 清 C tile 累加器
-    output reg         prefetch_go,
-    output reg         ph_array_start,     // ARRAY_START 阶段脉冲
-    output reg         feed_go,
-    output reg         drain_en,
-    output reg         write_go,
-    output reg        fsm_done,
-    output reg        core_busy
+    output reg   sched_init,
+    output reg   next_k_req,
+    output reg   next_out_req,
+    output reg   acc_clear,
+    output reg   pf_start,         // 单拍：启动当前 K Tile 的预取
+    output reg   pf_next_start,    // 单拍：启动下一个 K Tile 的预取
+    output reg   feed_go,
+    output reg   drain_en,
+    output reg   array_enable,
+    output reg   fsm_done,
+    output reg   core_busy
 );
 
-    localparam S_IDLE            = 4'd0;
-    localparam S_CHECK_CONFIG    = 4'd1;
-    localparam S_LOAD_TILE_PARAM = 4'd2;
-    localparam S_CLEAR_C_TILE    = 4'd3;
-    localparam S_PREFETCH_INPUT  = 4'd4;
-    localparam S_ARRAY_START     = 4'd5;
-    localparam S_ARRAY_FEED      = 4'd6;
-    localparam S_ARRAY_DRAIN     = 4'd7;
-    localparam S_RECEIVE_RESULT  = 4'd8;
-    localparam S_NEXT_K_OR_WRITE = 4'd9;
-    localparam S_WRITE_C_TILE    = 4'd10;
-    localparam S_NEXT_OUTPUT_TILE = 4'd11;
-    localparam S_DONE            = 4'd12;
+    localparam [2:0]
+        S_IDLE      = 3'd0,
+        S_INIT      = 3'd1,
+        S_CLEAR_ACC = 3'd2,
+        S_PREFETCH  = 3'd3,
+        S_FEED      = 3'd4,
+        S_DRAIN     = 3'd5,
+        S_DONE      = 3'd6;
 
-    reg [3:0]  state;
-    reg [5:0]  feed_cnt;      // 已送入的 A/BT 数据对数
+    reg [2:0] state;
+    reg [5:0] feed_cnt;      // 已送入的 A/BT 数据对数
 
-    // 只要离开 IDLE，Buffer 端口和任务状态就属于 NPU。
-    always @(*) begin
-        core_busy = (state != S_IDLE);
-        fsm_done  = (state == S_DONE);
-    end
-
-    // 预取完成条件：两个 FIFO 都已经拥有当前 K tile 的全部输入字。
-    // stream_ctrl 在 go 期间只发 valid_tk 个请求，因此 count 不会跨 Tile 无限增长。
-    wire prefetch_done = (a_fifo_count >= {1'b0, valid_tk}) &&
-                         (bt_fifo_count >= {1'b0, valid_tk});
+    // 预取完成条件：两个 FIFO 都已经拥有当前 K Tile 的全部输入字。
+    // burst 只发 valid_tk 个请求，且每个 K Tile 正好被消费 valid_tk 次，
+    // 所以 count 不会跨 Tile 累积，>= 判断不会提前通过。
+    wire prefetch_done  = (a_fifo_count  >= {1'b0, valid_tk}) &&
+                          (bt_fifo_count >= {1'b0, valid_tk});
     wire feed_beat_done = pair_fire && (feed_cnt + 6'd1 >= {1'b0, valid_tk});
+
+    always @(*) begin
+        core_busy    = (state != S_IDLE);
+        fsm_done     = (state == S_DONE);
+        array_enable = feed_go || drain_en;
+    end
 
     always @(posedge clk) begin
         if (rst) begin
-            state <= S_IDLE;
-            sched_init <= 1'b0; next_k_req <= 1'b0; next_out_req <= 1'b0;
-            acc_tile_clear <= 1'b0; prefetch_go <= 1'b0;
-            ph_array_start <= 1'b0; feed_go <= 1'b0; drain_en <= 1'b0;
-            write_go <= 1'b0;
-            feed_cnt <= 6'd0;
+            state         <= S_IDLE;
+            sched_init    <= 1'b0;
+            next_k_req    <= 1'b0;
+            next_out_req  <= 1'b0;
+            acc_clear     <= 1'b0;
+            pf_start      <= 1'b0;
+            pf_next_start <= 1'b0;
+            feed_go       <= 1'b0;
+            drain_en      <= 1'b0;
+            feed_cnt      <= 6'd0;
         end else begin
-            // 默认单拍信号清零；电平信号在各状态分支中显式拉高。
-            sched_init <= 1'b0; next_k_req <= 1'b0; next_out_req <= 1'b0;
-            acc_tile_clear <= 1'b0; ph_array_start <= 1'b0;
+            // 单拍脉冲默认清零；电平信号在各状态分支中显式拉高。
+            // acc_clear 也在这里清零：它是"换输出 Tile 时的电平"，只在 S_CLEAR_ACC
+            // 里重新拉高，否则会一直保持高把累加器每拍清零。
+            sched_init    <= 1'b0;
+            next_k_req    <= 1'b0;
+            next_out_req  <= 1'b0;
+            acc_clear     <= 1'b0;
+            pf_start      <= 1'b0;
+            pf_next_start <= 1'b0;
+
             case (state)
                 S_IDLE: begin
                     if (start_pulse)
-                        state <= S_LOAD_TILE_PARAM;
+                        state <= S_INIT;
                 end
 
-                S_LOAD_TILE_PARAM: begin
+                S_INIT: begin
                     sched_init <= 1'b1;
-                    state <= S_CLEAR_C_TILE;
+                    feed_cnt   <= 6'd0;
+                    state      <= S_CLEAR_ACC;
                 end
 
-                S_CLEAR_C_TILE: begin
-                    acc_tile_clear <= 1'b1;
-                    feed_cnt <= 6'd0;
-                    state <= S_PREFETCH_INPUT;
-                end
-
-                // 预取阶段不推进 PE，只等待两个 FIFO 都装满当前 K tile。
-                S_PREFETCH_INPUT: begin
-                    // A/BT 流控制器在 prefetch_go 期间连续发 valid_tk 个 RAM 读。
-                    prefetch_go <= 1'b1;
-                    feed_cnt    <= 6'd0;   // 每个 K tile 重新计数(K 间不经过 CLEAR_C_TILE)
-                    if (prefetch_done) begin
-                        prefetch_go <= 1'b0;
-                        state <= S_ARRAY_START;
+                // 每个输出 Tile 都从零开始累加；跨任务累加由 C 写回路径完成
+                // （见 c_write_fifo 的读-改-写），因此这里无条件清零。
+                S_CLEAR_ACC: begin
+                    acc_clear <= 1'b1;
+                    if (cwr_idle) begin
+                        pf_start <= 1'b1;      // 启动当前 K Tile 的预取
+                        state    <= S_PREFETCH;
                     end
                 end
 
-                // 单拍启动阵列并清空 PE 累加器；下一拍才开始送入有效数据。
-                S_ARRAY_START: begin
-                    // 只发起一次阵列启动脉冲；真正的输入在下一状态送入。
-                    ph_array_start <= 1'b1;    // 阵列启动 + PE 累加器清零
-                    state <= S_ARRAY_FEED;
+                // 预取已经与喂数重叠，这里通常只等最后几个字到齐。
+                // feed_cnt 必须在这里清零：每个 K Tile 都要重新数 valid_tk 拍。
+                S_PREFETCH: begin
+                    feed_cnt <= 6'd0;
+                    if (prefetch_done) begin
+                        pf_next_start <= !last_k_tile;
+                        state         <= S_FEED;
+                    end
                 end
 
-                // A/BT 必须成对 fire。最后一对被接受后立即停止 feed，下一阶段只排空。
-                S_ARRAY_FEED: begin
-                    // pair_fire 表示 A/BT 同时从 FIFO 出队并被 MAC 接收。
+                S_FEED: begin
                     feed_go <= 1'b1;
                     if (pair_fire) begin
                         feed_cnt <= feed_cnt + 6'd1;
                         if (feed_beat_done) begin
-                            feed_go   <= 1'b0;
-                            state     <= S_ARRAY_DRAIN;
+                            feed_go <= 1'b0;
+                            if (last_k_tile) begin
+                                state <= S_DRAIN;
+                            end else begin
+                                next_k_req <= 1'b1;
+                                state      <= S_PREFETCH;
+                            end
                         end
                     end
                 end
 
-                // 阵列继续 enable，让最后的波前穿过 PE；collect_done 表示结果流已收完。
-                S_ARRAY_DRAIN: begin
-                    // 停止新输入但保持阵列推进，让最后一组波前抵达远端 PE。
-                    drain_en <= 1'b1;           // 阵列继续推进 + 排空(P+Q-2 拍)
-                    if (collect_done) begin     // 16 个结果已串行流出
+                // 只有在所有 K Tile 都喂完后才排空一次，结果才完整。
+                S_DRAIN: begin
+                    drain_en <= 1'b1;
+                    if (drain_done) begin
                         drain_en <= 1'b0;
-                        state <= S_RECEIVE_RESULT;
+                        if (last_out_tile) begin
+                            state <= S_DONE;
+                        end else begin
+                            // 换输出 Tile：tile_j/tile_i 前进、tile_k 归零。
+                            // 必须在进 S_CLEAR_ACC 之前发出，S_CLEAR_ACC 只有一个
+                            // 周期窗口，下一个周期的 pf_start 要用新的 tile 基地址。
+                            next_out_req <= 1'b1;
+                            state        <= S_CLEAR_ACC;
+                        end
                     end
-                end
-
-                S_RECEIVE_RESULT: begin
-                    // MAC 串行输出 16 个 PE 累加值，收集完成后才进入下一阶段。
-                    state <= S_NEXT_K_OR_WRITE; // 结果已被 c_tile_acc_ctrl 消费
-                end
-
-                S_NEXT_K_OR_WRITE: begin
-                    if (!last_k_tile) begin
-                        next_k_req <= 1'b1;     // tile_k++, 继续累加部分和
-                        state <= S_PREFETCH_INPUT;
-                    end else begin
-                        state <= S_WRITE_C_TILE;
-                    end
-                end
-
-                // write_done 只有在 C 写 FIFO 排空且所有有效 lane 已入队后才会成立。
-                S_WRITE_C_TILE: begin
-                    // c_tile_write_ctrl 会跳过边界无效 lane，并等待 C 写 FIFO 排空。
-                    write_go <= 1'b1;
-                    if (write_done) begin
-                        write_go <= 1'b0;
-                        state <= last_output_tile ? S_DONE : S_NEXT_OUTPUT_TILE;
-                    end
-                end
-
-                S_NEXT_OUTPUT_TILE: begin
-                    next_out_req <= 1'b1;       // tile_j/tile_i 前进
-                    state <= S_CLEAR_C_TILE;
                 end
 
                 S_DONE: begin
-                    if (core_done)              // 等待最后一笔 C 写真正落 RAM
+                    if (core_done)
                         state <= S_IDLE;
                 end
 
@@ -181,4 +177,5 @@ module systolic_fsm(
             endcase
         end
     end
+
 endmodule

@@ -2,12 +2,12 @@
 // npu_system — NPU 唯一系统顶层
 //
 // 四个功能平面的边界固定在这里，顶层只负责端口连接，不执行算法：
-//   npu_top    处理 CPU MMIO、配置寄存器和 CPU/Buffer 访问仲裁；
-//   tile_controller 处理 Tile 循环、地址生成、阵列时序和 C 写回；
-//   npu_buffer 处理 A/BT/C RAM、预取 FIFO 和 C 写 FIFO；
-//   npu_mac    处理 INT8 拆包、波前对齐、PE 阵列和结果收集。
+//   npu_top          CPU MMIO、配置寄存器、启动校验和 CPU/Buffer 访问仲裁；
+//   tile_controller  Tile 循环、地址生成、预取/喂数时序和 C 写回；
+//   npu_buffer       A/BT/C RAM、A/BT 预取 FIFO 和 C 写 FIFO；
+//   npu_mac          INT8 拆包、波前对齐、PE 阵列和排空计数。
 // 控制路径：CPU -> npu_top -> tile_controller -> npu_mac。
-// 数据路径：A/BT Buffer -> 预取 FIFO -> MAC -> C 结果 FIFO -> C Buffer。
+// 数据路径：A/BT Buffer -> 预取 FIFO -> MAC 累加器 -> 结果快照 -> C 写 FIFO -> C Buffer。
 `include "npu_defines.vh"
 
 module npu_system(
@@ -31,6 +31,7 @@ module npu_system(
     wire [`NPU_DIM_W-1:0]  cfg_m, cfg_n, cfg_k;
     wire [`NPU_TK_W-1:0]   cfg_tk;
     wire [`NPU_QS_W-1:0]   cfg_qshift;
+    wire                   cfg_accumulate;
     wire        core_busy, core_done;
 
     // npu_top 与 npu_buffer 之间的 CPU 端口。
@@ -46,19 +47,18 @@ module npu_system(
     wire        npu_a_re;
     wire [`NPU_BBUF_AW-1:0] npu_bt_addr;
     wire        npu_bt_re;
-    wire        a_fifo_pop, bt_fifo_pop;
+    wire        fifo_pair_pop;
     wire [31:0] a_fifo_rdata, bt_fifo_rdata;
     wire [`NPU_FIFO_AW:0] a_fifo_count, bt_fifo_count;
 
-    // tile_controller 到 npu_mac 的阵列控制、数据流和结果流。
-    wire        array_start, array_enable, drain_en;
+    // tile_controller 到 npu_mac 的阵列控制、输入流，以及 npu_mac 回到
+    // tile_controller 的累加器快照和排空完成。
+    wire        acc_clear, array_enable, drain_en;
     wire        stream_valid;
     wire [31:0] a_stream_data, bt_stream_data;
     wire [3:0]  a_lane_en, bt_lane_en;
-    wire        collect_done;
-    wire        c_result_valid;
-    wire [31:0] c_result;
-    wire [3:0]  c_result_index;
+    wire [`NPU_PE_NUM*`NPU_ACC_W-1:0] acc_flat;
+    wire        drain_done;
 
     // tile_controller 到 npu_buffer 的 C 写回 FIFO 接口。
     wire        cwr_valid, cwr_ready, cwr_empty, c_wr_pulse;
@@ -73,7 +73,7 @@ module npu_system(
         .cpu_rdata(cpu_rdata_w), .cpu_ready(cpu_ready_w),
         .start_pulse(start_pulse),
         .cfg_m(cfg_m), .cfg_n(cfg_n), .cfg_k(cfg_k),
-        .cfg_tk(cfg_tk), .cfg_qshift(cfg_qshift),
+        .cfg_tk(cfg_tk), .cfg_qshift(cfg_qshift), .cfg_accumulate(cfg_accumulate),
         .core_busy(core_busy), .core_done(core_done),
         .cpu_a_we(cpu_a_we), .cpu_a_re(cpu_a_re),
         .cpu_bt_we(cpu_bt_we), .cpu_bt_re(cpu_bt_re),
@@ -92,17 +92,14 @@ module npu_system(
         .a_addr(npu_a_addr), .a_re(npu_a_re),
         .bt_addr(npu_bt_addr), .bt_re(npu_bt_re),
         .a_fifo_rdata(a_fifo_rdata),
-        .a_fifo_count(a_fifo_count), .a_fifo_pop(a_fifo_pop),
+        .a_fifo_count(a_fifo_count), .fifo_pair_pop(fifo_pair_pop),
         .bt_fifo_rdata(bt_fifo_rdata),
-        .bt_fifo_count(bt_fifo_count), .bt_fifo_pop(bt_fifo_pop),
-        .array_start(array_start), .array_enable(array_enable),
-        .drain_en(drain_en),
-        .stream_valid(stream_valid), .a_stream_data(a_stream_data),
-        .bt_stream_data(bt_stream_data),
+        .bt_fifo_count(bt_fifo_count),
+        .acc_clear(acc_clear), .array_enable(array_enable), .drain_en(drain_en),
+        .stream_valid(stream_valid),
+        .a_stream_data(a_stream_data), .bt_stream_data(bt_stream_data),
         .a_lane_en(a_lane_en), .bt_lane_en(bt_lane_en),
-        .collect_done(collect_done),
-        .c_result_valid(c_result_valid), .c_result(c_result),
-        .c_result_index(c_result_index),
+        .acc_flat_in(acc_flat), .drain_done(drain_done),
         .cwr_valid(cwr_valid), .cwr_addr(cwr_addr), .cwr_data(cwr_data),
         .cwr_ready(cwr_ready), .cwr_empty(cwr_empty), .c_wr_pulse(c_wr_pulse),
         .core_busy(core_busy), .core_done(core_done)
@@ -111,6 +108,7 @@ module npu_system(
     // ============ npu_buffer ============
     npu_buffer u_npu_buffer(
         .clk(clk), .rst(rst), .core_busy(core_busy),
+        .accumulate(cfg_accumulate),
         .cpu_a_we(cpu_a_we), .cpu_a_re(cpu_a_re), .cpu_a_addr(cpu_a_addr),
         .cpu_a_wdata(cpu_a_wdata),
         .cpu_bt_we(cpu_bt_we), .cpu_bt_re(cpu_bt_re), .cpu_bt_addr(cpu_bt_addr),
@@ -121,9 +119,9 @@ module npu_system(
         .npu_bt_addr(npu_bt_addr), .npu_bt_re(npu_bt_re),
         .a_rdata_cpu(a_rdata_cpu), .bt_rdata_cpu(bt_rdata_cpu), .c_rdata_cpu(c_rdata_cpu),
         .a_fifo_rdata(a_fifo_rdata),
-        .a_fifo_count(a_fifo_count), .a_fifo_pop(a_fifo_pop),
+        .a_fifo_count(a_fifo_count), .fifo_pair_pop(fifo_pair_pop),
         .bt_fifo_rdata(bt_fifo_rdata),
-        .bt_fifo_count(bt_fifo_count), .bt_fifo_pop(bt_fifo_pop),
+        .bt_fifo_count(bt_fifo_count),
         .cwr_valid(cwr_valid), .cwr_addr(cwr_addr), .cwr_data(cwr_data),
         .cwr_ready(cwr_ready), .cwr_empty(cwr_empty), .c_wr_pulse(c_wr_pulse)
     );
@@ -131,14 +129,13 @@ module npu_system(
     // ============ npu_mac ============
     npu_mac u_npu_mac(
         .clk(clk), .rst(rst),
-        .array_start(array_start), .array_enable(array_enable),
-        .drain_en(drain_en),
-        .stream_valid(stream_valid), .a_stream_data(a_stream_data),
-        .bt_stream_data(bt_stream_data),
-        .a_lane_en(a_lane_en), .bt_lane_en(bt_lane_en),
-        .collect_done(collect_done),
-        .c_result_valid(c_result_valid), .c_result(c_result),
-        .c_result_index(c_result_index)
+        .acc_clear_in(acc_clear),
+        .array_enable_in(array_enable),
+        .drain_en_in(drain_en),
+        .stream_valid_in(stream_valid),
+        .a_stream_in(a_stream_data), .bt_stream_in(bt_stream_data),
+        .a_lane_en_in(a_lane_en), .bt_lane_en_in(bt_lane_en),
+        .acc_flat_out(acc_flat), .drain_done_out(drain_done)
     );
 
     always @(*) begin

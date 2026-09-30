@@ -164,15 +164,15 @@ ax2.text(10.5, 44.5,
     "for tile_i  (行块, 步长 TM)\n"
     "  for tile_j  (列块, 步长 TN)\n"
     "    for tile_k  (K 方向, 步长 TK)\n"
-    "      计算 4×4×TK 部分和 -> c_tile_acc_ctrl",
+    "      计算 4×4×TK 部分和 -> 留在 PE 累加器里连续累加",
     fontsize=9.6, va="top", ha="left",
     color="#24292F", linespacing=1.8)
 ax2.text(63, 44.5,
-    "· tile_k = 0:装入(清零后首装)\n"
-    "· 中间 tile_k:只累加不写回\n"
-    "· 最后 tile_k:量化 → 写 C Buffer\n"
-    "· 最后输出 tile 且最后一笔 C 写\n"
-    "  真正落 RAM → core_done",
+    "· tile_k 之间不清累加器、不排空\n"
+    "· 预取与喂数重叠，阵列在预取时冻结\n"
+    "· 最后 tile_k 之后排空一次并整块快照\n"
+    "· 写回与下一个输出 tile 的计算并行\n"
+    "· 最后一笔 C 真正落 RAM → core_done",
     fontsize=9.6, va="top", ha="left", color="#424A53", linespacing=1.8)
 ax2.text(50, 58.6, "16×16×16、TK=4 时共 4×4×4 = 64 个 tile,实测 3100 周期完成",
          fontsize=9.8, ha="center", color=C_C, weight="bold")

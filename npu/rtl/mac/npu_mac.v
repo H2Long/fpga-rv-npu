@@ -1,110 +1,89 @@
 `timescale 1ns / 1ps
 // npu_mac — INT8 MAC 计算平面
 //
-// 输入路径把一个 32 位字拆为 4 个 INT8，再用 skew 管线让不同的行/列
-// 在正确的周期相遇。PE 阵列只在 array_enable 时推进；排空阶段没有新输入，
-// 但仍保持 enable，让最后一个波前到达远端 PE。
-// 本模块不做 Tile 调度，也不访问 RAM；它只消费成对的 A/BT stream，
-// 产生 16 个 PE 累加结果。
+// 输入路径把一个 32 位字拆成 4 个带边界屏蔽的 INT8 lane，再用 skew 管线
+// 让不同的行/列在正确的周期相遇。PE 阵列只在 array_enable_in 时推进；
+// 排空阶段没有新输入但仍保持 enable，让最后一个波前到达远端 PE。
+//
+// 本模块不做 Tile 调度，也不访问 RAM：它消费成对的 A/BT 流，直接输出
+// 16 个 PE 累加器（acc_flat_out）。累加器跨 K Tile 一直保持，只在
+// acc_clear_in 时清零，因此部分和不需要搬到阵列外面再搬回来。
+//
+// 边界补零：lane_en_in 为 0 的 lane 数据被强制为 0，越界的行/列参与乘法
+// 但不影响结果（且越界 C 元素不会被写回）。
+// 端口布局：
+//   a_stream_in/a_lane_en_in 的第 r 位是第 r 行；bt_* 的第 c 位是第 c 列；
+//   acc_flat_out 的第 (r*Q+c)*NPU_ACC_W +: NPU_ACC_W 位是 PE[r][c] 的累加器。
 `include "npu_defines.vh"
 
 module npu_mac(
     input        clk,
     input        rst,
-    // 阵列控制(来自 tile_controller 的阶段译码)
-    input        array_start,
-    input        array_enable,
-    input        drain_en,
-    // A/BT 输入流(来自 tile_controller.pair_stream_ctrl)
-    input        stream_valid,
-    input [31:0] a_stream_data,
-    input [31:0] bt_stream_data,
-    input [3:0]  a_lane_en,
-    input [3:0]  bt_lane_en,
-    // 状态(到 tile_controller)
-    output reg        collect_done,
-    // C 结果流(到 tile_controller.c_tile_acc_ctrl)
-    output reg        c_result_valid,
-    output reg [`NPU_ACC_W-1:0] c_result,
-    output reg [3:0]  c_result_index
+    // 阵列控制(来自 tile_controller)
+    input        acc_clear_in,     // 换输出 Tile：清累加器并冲刷残留波前
+    input        array_enable_in,  // 喂数或排空期间为 1，其余时间阵列整体冻结
+    input        drain_en_in,      // 排空阶段电平
+    // A/BT 成对输入流(来自 tile_controller 的 FIFO 出队)
+    input        stream_valid_in,
+    input [31:0] a_stream_in,
+    input [31:0] bt_stream_in,
+    input [3:0]  a_lane_en_in,
+    input [3:0]  bt_lane_en_in,
+    // 结果与状态
+    output reg [`NPU_PE_NUM*`NPU_ACC_W-1:0] acc_flat_out,
+    output reg   drain_done_out
 );
 
-    // ---- 输入拆包：一个 32 位字 -> 四个 INT8 lane ----
-    wire [7:0] a_l0, a_l1, a_l2, a_l3;
-    wire       a_lv;
-    wire [7:0] b_l0, b_l1, b_l2, b_l3;
-    wire       b_lv;
+    integer i;
 
-    input_unpacker u_a_input_unpacker(
-        .in_valid(stream_valid), .in_data(a_stream_data), .lane_en(a_lane_en),
-        .lane0(a_l0), .lane1(a_l1), .lane2(a_l2), .lane3(a_l3),
-        .lanes_valid(a_lv)
-    );
+    // ---- 输入拆包：一个 32 位字 -> 四个带边界屏蔽的 INT8 lane ----
+    reg [7:0] a_lane  [0:3];
+    reg [7:0] bt_lane [0:3];
 
-    input_unpacker u_bt_input_unpacker(
-        .in_valid(stream_valid), .in_data(bt_stream_data), .lane_en(bt_lane_en),
-        .lane0(b_l0), .lane1(b_l1), .lane2(b_l2), .lane3(b_l3),
-        .lanes_valid(b_lv)
-    );
+    always @(*) begin
+        for (i = 0; i < 4; i = i + 1) begin
+            a_lane[i]  = a_lane_en_in[i]  ? a_stream_in[i*8 +: 8]  : 8'h00;
+            bt_lane[i] = bt_lane_en_in[i] ? bt_stream_in[i*8 +: 8] : 8'h00;
+        end
+    end
 
-    // ---- 波前对齐：第 r 行/第 c 列使用 r/c 拍延迟 ----
-    wire [7:0] a_sk0, a_sk1, a_sk2, a_sk3;
-    wire       a_sk_v0, a_sk_v1, a_sk_v2, a_sk_v3;
-    wire [7:0] bt_sk0, bt_sk1, bt_sk2, bt_sk3;
-    wire       bt_sk_v0, bt_sk_v1, bt_sk_v2, bt_sk_v3;
+    // ---- 波前对齐：第 r 行 / 第 c 列分别延迟 r / c 拍 ----
+    wire [`NPU_P*8-1:0] a_sk;
+    wire [`NPU_P-1:0]   a_sk_v;
+    wire [`NPU_Q*8-1:0] bt_sk;
+    wire [`NPU_Q-1:0]   bt_sk_v;
 
     a_bt_skew_pipeline u_skew(
-        .clk(clk), .rst(rst), .enable(array_enable),
-        .a_in0(a_l0), .a_in1(a_l1), .a_in2(a_l2), .a_in3(a_l3), .a_in_v(a_lv),
-        .bt_in0(b_l0), .bt_in1(b_l1), .bt_in2(b_l2), .bt_in3(b_l3), .bt_in_v(b_lv),
-        .a_sk0(a_sk0), .a_sk1(a_sk1), .a_sk2(a_sk2), .a_sk3(a_sk3),
-        .a_sk_v0(a_sk_v0), .a_sk_v1(a_sk_v1), .a_sk_v2(a_sk_v2), .a_sk_v3(a_sk_v3),
-        .bt_sk0(bt_sk0), .bt_sk1(bt_sk1), .bt_sk2(bt_sk2), .bt_sk3(bt_sk3),
-        .bt_sk_v0(bt_sk_v0), .bt_sk_v1(bt_sk_v1), .bt_sk_v2(bt_sk_v2), .bt_sk_v3(bt_sk_v3)
+        .clk(clk), .rst(rst), .enable_in(array_enable_in),
+        .a_in({a_lane[3], a_lane[2], a_lane[1], a_lane[0]}),
+        .a_in_valid(stream_valid_in),
+        .bt_in({bt_lane[3], bt_lane[2], bt_lane[1], bt_lane[0]}),
+        .bt_in_valid(stream_valid_in),
+        .a_out(a_sk), .a_out_valid(a_sk_v),
+        .bt_out(bt_sk), .bt_out_valid(bt_sk_v)
     );
 
     // ---- PE 阵列 ----
-    wire [16*`NPU_ACC_W-1:0] acc_flat;
+    wire [`NPU_PE_NUM*`NPU_ACC_W-1:0] acc_w;
+    wire drain_done_w;
 
     pe_array u_pe_array(
-        .clk(clk), .rst(rst), .enable(array_enable), .clear_acc(array_start),
-        .a_lanes({a_sk3, a_sk2, a_sk1, a_sk0}),
-        .a_lane_v({a_sk_v3, a_sk_v2, a_sk_v1, a_sk_v0}),
-        .bt_lanes({bt_sk3, bt_sk2, bt_sk1, bt_sk0}),
-        .bt_lane_v({bt_sk_v3, bt_sk_v2, bt_sk_v1, bt_sk_v0}),
-        .acc_flat(acc_flat)
+        .clk(clk), .rst(rst),
+        .enable(array_enable_in), .clear_acc(acc_clear_in),
+        .a_lanes_in(a_sk), .a_lane_v_in(a_sk_v),
+        .bt_lanes_in(bt_sk), .bt_lane_v_in(bt_sk_v),
+        .acc_flat_out(acc_w)
     );
 
-    // ---- 排空与收集 ----
-    // drain_done 只代表波前已经传播到最远端，collector 还要再串行输出 16 个结果。
-    wire drain_done, collect_done_w;
-    wire c_result_valid_w;
-    wire [`NPU_ACC_W-1:0] c_result_w;
-
+    // ---- 排空计数 ----
     drain_controller u_drain_controller(
         .clk(clk), .rst(rst),
-        .array_start(array_start), .drain_en(drain_en), .array_enable(array_enable),
-        .drain_done(drain_done)
+        .drain_en_in(drain_en_in), .drain_done_out(drain_done_w)
     );
 
-    wire [3:0] scan_index;
-
-    tile_result_collector u_tile_result_collector(
-        .clk(clk), .rst(rst),
-        .array_start(array_start), .drain_done_i(drain_done), .acc_flat(acc_flat),
-        .c_result_valid(c_result_valid_w), .c_result(c_result_w),
-        .c_scan_index(scan_index),
-        .collect_done(collect_done_w)
-    );
-
-    // 当前阵列没有额外的随机反压：feed 和 drain 期间都可以推进；
-    // pair_stream_ctrl 在 feed 阶段根据两侧 FIFO count 产生统一 stream_valid。
     always @(*) begin
-        c_result_valid  = c_result_valid_w;
-        c_result        = c_result_w;
-        // collector 当前按行主序扫描，扫描下标就是逻辑 C 下标。
-        c_result_index  = scan_index;
-        collect_done    = collect_done_w;
+        acc_flat_out   = acc_w;
+        drain_done_out = drain_done_w;
     end
 
 endmodule
