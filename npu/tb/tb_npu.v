@@ -241,18 +241,22 @@ module tb_npu;
         rst = 1'b0;
         repeat (2) @(negedge clk);
 
-        $display("==== NPU INT8 GEMM 仿真开始 ====");
-
-        run_gemm_test("T1_单tile_4x4x4     ", 4,  4,  4, 4, 4, 4, 0, 32'h1);
-        run_gemm_test("T2_满规模_16x16x16  ", 16, 16, 16, 4, 4, 4, 0, 32'h2);
-        run_gemm_test("T3_边界_6x7x9       ", 6,  7,  9, 4, 4, 3, 0, 32'h3);
-        run_gemm_test("T4_小tile_5x5x6     ", 5,  5,  6, 2, 3, 3, 0, 32'h4);
-        run_gemm_test("T5_量化_8x8x8_q2    ", 8,  8,  8, 4, 4, 8, 2, 32'h5);
-        run_err_test ("T6_零维错误         ", 0,  4,  4, 4, 4, 4, 1);
-        run_err_test ("T7_超容量错误       ", 8,  8, 40, 4, 4, 16, 3);
-        run_err_test ("T8_TM为零错误       ", 4,  4,  4, 0, 4,  4, 2);
-        run_err_test ("T9_TN为零错误       ", 4,  4,  4, 4, 0,  4, 2);
-        run_err_test ("T10_TK为零错误      ", 4,  4,  4, 4, 4, 0, 4);
+        if ($test$plusargs("ONLY_T1")) begin
+            $display("==== NPU 简单单 Tile 仿真开始 ====");
+            run_gemm_test("T1_单tile_4x4x4     ", 4, 4, 4, 4, 4, 4, 0, 32'h1);
+        end else begin
+            $display("==== NPU INT8 GEMM 仿真开始 ====");
+            run_gemm_test("T1_单tile_4x4x4     ", 4,  4,  4, 4, 4, 4, 0, 32'h1);
+            run_gemm_test("T2_满规模_16x16x16  ", 16, 16, 16, 4, 4, 4, 0, 32'h2);
+            run_gemm_test("T3_边界_6x7x9       ", 6,  7,  9, 4, 4, 3, 0, 32'h3);
+            run_gemm_test("T4_小tile_5x5x6     ", 5,  5,  6, 2, 3, 3, 0, 32'h4);
+            run_gemm_test("T5_量化_8x8x8_q2    ", 8,  8,  8, 4, 4, 8, 2, 32'h5);
+            run_err_test ("T6_零维错误         ", 0,  4,  4, 4, 4, 4, 1);
+            run_err_test ("T7_超容量错误       ", 8,  8, 40, 4, 4, 16, 3);
+            run_err_test ("T8_TM为零错误       ", 4,  4,  4, 0, 4,  4, 2);
+            run_err_test ("T9_TN为零错误       ", 4,  4,  4, 4, 0,  4, 2);
+            run_err_test ("T10_TK为零错误      ", 4,  4,  4, 4, 4, 0, 4);
+        end
 
         $display("==== 结果: PASS=%0d FAIL=%0d ====", num_pass, num_fail);
         if (num_fail == 0) $display("ALL TESTS PASSED");

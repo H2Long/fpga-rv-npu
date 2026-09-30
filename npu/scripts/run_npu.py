@@ -27,6 +27,7 @@ def find_iverilog():
 
 
 def main():
+    simple = "--simple" in sys.argv[1:]
     os.makedirs(BUILD, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(WAVE_DIR, exist_ok=True)
@@ -56,11 +57,19 @@ def main():
         print("编译警告已写入", compile_log)
 
     print("仿真运行中 ...")
+    sim_cmd = [os.path.join(BUILD, "tb_npu.vvp")]
+    if simple:
+        sim_cmd.append("+ONLY_T1")
     r = subprocess.run(
-        [os.path.join(BUILD, "tb_npu.vvp")],
+        sim_cmd,
         cwd=WAVE_DIR, capture_output=True, text=True, timeout=600,
         encoding="utf-8", errors="replace"
     )
+    if simple and r.returncode == 0:
+        shutil.copyfile(
+            os.path.join(WAVE_DIR, "npu_wave.vcd"),
+            os.path.join(WAVE_DIR, "npu_wave_simple.vcd"),
+        )
     log = os.path.join(LOG_DIR, "npu_sim.log")
     with open(log, "w", encoding="utf-8") as fh:
         fh.write(r.stdout + r.stderr)

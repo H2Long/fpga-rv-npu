@@ -93,10 +93,10 @@ module npu_top(
 
     // ---- MMIO 地址译码：req_addr 已由 mmio_if 锁存 ----
     assign sel_ctrl   = (req_addr[31:5] == 27'd0);
-    assign sel_status = (req_addr[31:5] == 27'd1);
-    assign sel_a_buf  = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h1);
-    assign sel_bt_buf = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h2);
-    assign sel_c_buf  = (req_addr[31:16] == 16'd0) && (req_addr[15:12] == 4'h3);
+    assign sel_status = (req_addr[31:4] == 28'h0000002); // 0x0020-0x002F
+    assign sel_a_buf  = (req_addr[31:8] == 24'h000010);  // 0x1000-0x10FF
+    assign sel_bt_buf = (req_addr[31:8] == 24'h000020);  // 0x2000-0x20FF
+    assign sel_c_buf  = (req_addr[31:10] == 22'h00000C); // 0x3000-0x33FF
     assign sel_buffer = sel_a_buf | sel_bt_buf | sel_c_buf;
     assign a_local_addr  = req_addr[7:2];
     assign bt_local_addr = req_addr[7:2];

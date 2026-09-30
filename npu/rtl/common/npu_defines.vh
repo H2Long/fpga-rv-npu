@@ -29,7 +29,7 @@
 `define NPU_TIDX_W 6           // tile 计数器位宽,支持 M/N=63 且 TM/TN=1
 `define NPU_CBASE_W 9          // C 元素基地址中间位宽
 
-// MMIO 地址映射(addr_decoder 使用)
+// MMIO 地址映射(npu_top 内联译码使用)
 `define NPU_ADDR_CTRL_BASE 32'h0000_0000  // 0x0000-0x001F 控制寄存器
 `define NPU_ADDR_STAT_BASE 32'h0000_0020  // 0x0020-0x002F 状态寄存器
 `define NPU_ADDR_ABUF_BASE 32'h0000_1000  // 0x1000-0x10FF A Buffer
