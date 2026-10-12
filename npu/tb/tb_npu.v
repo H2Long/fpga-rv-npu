@@ -70,6 +70,18 @@ module tb_npu;
 
     integer cycle_cnt;
     integer ahb_err;      // 非预期 ERROR 响应计数
+    // 预取 FIFO 深度假设的看门狗。整段突发依赖"生产 1 字/拍 = 消费 1 字/拍"，
+    // 所以 FIFO 只用到几个字（实测峰值 3，深度 16）。一旦出现 full，说明这个假设
+    // 被破坏，npu_sync_fifo 会静默丢弃 push 并算错结果——所以直接让回归失败，
+    // 而不是让它悄悄过去。
+    integer fifo_full_err;
+    wire fifo_a_full = dut.u_npu_buffer.u_a_prefetch_fifo.full;
+    wire fifo_b_full = dut.u_npu_buffer.u_bt_prefetch_fifo.full;
+
+    always @(posedge HCLK) begin
+        if (HRESETn && (fifo_a_full || fifo_b_full))
+            fifo_full_err <= fifo_full_err + 1;
+    end
     integer ahb_stall;    // 背靠背流水期间的意外等待态计数
 
     npu_system dut(
@@ -120,6 +132,7 @@ module tb_npu;
         cycle_cnt = 0;
         ahb_err = 0;
         ahb_stall = 0;
+        fifo_full_err = 0;
         num_pass = 0;
         num_fail = 0;
     end
@@ -612,6 +625,11 @@ module tb_npu;
             run_gemm_test("GC_recover             ", 4, 4, 4, 4, 0, 32'hB);
         end
 
+        if (fifo_full_err != 0) begin
+            num_fail = num_fail + 1;
+            $display("[FIFO_full看门狗        ] FAIL : 预取 FIFO 出现 full %0d 拍（深度假设被破坏）",
+                     fifo_full_err);
+        end
         $display("==== 结果: PASS=%0d FAIL=%0d ====", num_pass, num_fail);
         if (ahb_err != 0)
             $display("==== 非预期 AHB ERROR 响应: %0d 次 ====", ahb_err);

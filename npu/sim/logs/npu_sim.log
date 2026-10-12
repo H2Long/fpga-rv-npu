@@ -49,4 +49,4 @@ TASK_BEGIN GC_recover              m=4 n=4 k=4 tk=4
 [GC_recover             ] PASS : M=4 N=4 K=4 TK=4 q=0 | C 16 项, 耗时 44 周期
 ==== 结果: PASS=26 FAIL=0 ====
 ALL TESTS PASSED
-/home/hhlong/code/fpga-calss-design/npu/tb/tb_npu.v:620: $finish called at 95380000 (1ps)
+/home/hhlong/code/fpga-calss-design/npu/tb/tb_npu.v:638: $finish called at 95380000 (1ps)

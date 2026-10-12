@@ -162,18 +162,18 @@ module tile_controller(
     // ---- A/BT 预取：一次突发取完一个 K Tile ----
     wire [`NPU_ABUF_AW-1:0] a_rd_addr_w;
     wire [`NPU_BBUF_AW-1:0] bt_rd_addr_w;
-    wire a_rd_re_w, bt_rd_re_w, a_burst_busy, bt_burst_busy;
+    wire a_rd_re_w, bt_rd_re_w;
 
     npu_stream_ctrl #(.AW(`NPU_ABUF_AW)) u_a_stream_ctrl(
         .clk(clk), .rst(rst),
         .base_in(a_pf_base), .len_in(pf_len), .start_in(stream_start),
-        .rd_addr_out(a_rd_addr_w), .rd_re_out(a_rd_re_w), .busy_out(a_burst_busy)
+        .rd_addr_out(a_rd_addr_w), .rd_re_out(a_rd_re_w)
     );
 
     npu_stream_ctrl #(.AW(`NPU_BBUF_AW)) u_bt_stream_ctrl(
         .clk(clk), .rst(rst),
         .base_in(bt_pf_base), .len_in(pf_len), .start_in(stream_start),
-        .rd_addr_out(bt_rd_addr_w), .rd_re_out(bt_rd_re_w), .busy_out(bt_burst_busy)
+        .rd_addr_out(bt_rd_addr_w), .rd_re_out(bt_rd_re_w)
     );
 
     // ---- 成对送数：两个 FIFO 都非空才出队（在下面的组合块里计算）----
