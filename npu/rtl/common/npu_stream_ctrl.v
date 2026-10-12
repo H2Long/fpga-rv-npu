@@ -1,6 +1,9 @@
 `timescale 1ns / 1ps
 // npu_stream_ctrl — 连续地址读突发控制器
 //
+// 突发长度用 NPU_DIM_W(6 位)：上层对 A/BT 的预取是"一个输出 Tile 的整段连续数据"，
+// 长度等于 K（最大 63），不再按 K Tile 切成小段，所以长度位宽不能再用 NPU_TK_W。
+//
 // start_in 收到一拍脉冲后，从 base_in 开始连续发出 len_in 个读请求：
 //   start_in 当拍发出第 1 个请求，之后每个时钟沿地址加 1，发满 len_in 个后停止；
 //   len_in=0 时不产生任何请求；突发长度和起始地址在 start_in 当拍被锁存，
@@ -14,14 +17,14 @@ module npu_stream_ctrl #(parameter AW = `NPU_ABUF_AW) (
     input        clk,
     input        rst,
     input [AW-1:0] base_in,
-    input [`NPU_TK_W-1:0] len_in,
+    input [`NPU_DIM_W-1:0] len_in,
     input        start_in,
     output reg [AW-1:0] rd_addr_out,
     output reg   rd_re_out,
     output reg   busy_out
 );
 
-    reg [`NPU_TK_W-1:0] left_q;      // 本次突发还没发出的请求数
+    reg [`NPU_DIM_W-1:0] left_q;     // 本次突发还没发出的请求数
 
     always @(posedge clk) begin
         if (rst) begin

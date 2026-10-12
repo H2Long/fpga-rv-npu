@@ -79,7 +79,8 @@ tile 基地址：`A 字基址 = tile_i*K + tile_k*TK`，`BT 字基址 = tile_j*K
                  （此状态只等 snap_ready：有空闲快照 bank 就放行，不等写回排空）
 2. PREFETCH    : 等 A/BT FIFO 装满当前 K Tile。下一个 K Tile 的预取已经在
                  上一步的 FEED 期间启动，所以这里通常一拍通过
-3. FEED        : 两侧 FIFO 都有数据时每拍成对弹出 A/BT，喂 valid_tk 拍；
+3. FEED        : 两侧 FIFO 都有数据时每拍成对弹出 A/BT；一个 K Tile 喂 valid_tk 拍，
+                 喂完直接进下一个 K Tile（不回 PREFETCH），只有 FIFO 空时才原地等；
                  进入 FEED 的同时启动下一个 K Tile 的预取（与喂数重叠）
 4. K 循环      : 最后一个 K Tile 之前回到 PREFETCH，**不清累加器、不排空**；
                  阵列在 PREFETCH 期间整体冻结，整条 skew 管线一起保持偏移，
@@ -105,7 +106,7 @@ tile 基地址：`A 字基址 = tile_i*K + tile_k*TK`，`BT 字基址 = tile_j*K
 |---|---:|---:|
 | 4×4×4，TK=4 | 48 | 8% |
 | 16×16×16，TK=2 | 1116 | 22% |
-| 16×16×16，TK=4 | 698 | 37% |
+| 16×16×16，TK=4 | 501 | 51% |
 | 16×16×16，TK=16 | 1004 | 25% |
 | 8×8×32，TK=4 | 360 | 35% |
 | 8×8×32，TK=16 | 336 | 38% |
@@ -115,7 +116,8 @@ tile 基地址：`A 字基址 = tile_i*K + tile_k*TK`，`BT 字基址 = tile_j*K
 1. `TK` 现在只是流水长度参数：TK=2/4/16 的性能差别在 15% 以内
    （v2.0 中 TK=4 比 TK=16 慢 2.2 倍，因为每个 K Tile 都要排空一次）；
 2. 16×16×16 是单个任务的最大规模（A/BT 各用满 64 字），从 v2.0 的 3031 拍降到 v2.1 的 956 拍、
-   v2.3 的 698 拍（快照双 bank 去掉了每块 tile 等写回扫描的 15 拍）；
+   v2.3 的 698 拍、v2.4 的 501 拍（快照双 bank 去掉了每块 tile 等写回扫描的 15 拍，
+   整段预取突发去掉了每块 tile 等预取和 K Tile 边界的往返）；
 3. 剩余时间主要花在 CPU 的 MMIO 装载与 C 回读上——这部分只能靠 §16 的 DMA 解决。
 
 ## 7. 验证覆盖（回归网）
@@ -134,6 +136,7 @@ tile 基地址：`A 字基址 = tile_i*K + tile_k*TK`，`BT 字基址 = tile_j*K
 | G8 8×7×7 TK=1 | 最小 K Tile（每 K Tile 只有 1 拍） |
 | G9 8×8×16 TK=1/2/4/8/16 | **TK 不变性**：同一 GEMM 换 TK 结果必须逐位一致 |
 | G10 16×16×1 TK=1 | **写回压力**：16 个输出 Tile、每块只喂 1 拍，Tile 周期最短，压 C 写回快照 bank 的积压路径 |
+| G11 4×4×63 TK=16 | **最大 K**：整段预取突发 63 个字，正好顶到 64 深预取 FIFO 的边界 |
 | GA 8×8×16 拆两段 K=8 | **跨任务累加** `ACC_CFG.accumulate` |
 | GB1~GB4 | 非法配置（超 A 容量 / 超 C 容量 / TK 超范围 / K=0）必须置 ERROR 且不进入 BUSY |
 | GC | 非法配置之后必须能正常恢复 |
@@ -299,10 +302,10 @@ C 一个 32 位字保存一个结果元素；A/BT 使用 K 主序，C 使用行�
 4.  start_ctrl 校验配置；非法则置 ERROR 并停在 ERROR 状态，合法则锁存参数并产生 start_pulse
 5.  systolic_fsm 从 S_IDLE 进入 S_INIT，复位三层 Tile 计数器
 6.  S_CLEAR_ACC：清 PE 累加器（冲刷波前），等 snap_ready（有空闲快照 bank）后启动第一个 K Tile 的预取
-7.  两个 npu_stream_ctrl 各自发出 valid_tk 个读请求，数据进入 A/BT 预取 FIFO
+7.  两个 npu_stream_ctrl 各自发出 K 个读请求（一个输出 Tile 的整段连续数据），数据进入 A/BT 预取 FIFO
 8.  S_FEED：每拍成对弹出 A/BT，拆包后经 skew 管线注入阵列；
     进入 FEED 的同时启动下一个 K Tile 的预取
-9.  下一个 K Tile 之前不排空、不清累加器，阵列在 S_PREFETCH 期间整体冻结 ⇒ 无缝续算
+9.  下一个 K Tile 之前不排空、不清累加器，跨 K Tile 的部分和留在 PE 里连续累加 ⇒ 无缝续算
 10. 所有 K Tile 结束后 S_DRAIN：保持阵列推进 P+Q-2 = 6 个使能拍
 11. 排空完成那一拍把 16 个累加器连同 C 基地址、边界尺寸锁存成快照（写入空闲的那组 bank）
 12. 快照扫描 16 个 lane：量化 → 入 C 写 FIFO → 写入 C RAM（accumulate=1 时先读原值相加）
@@ -317,7 +320,7 @@ C 一个 32 位字保存一个结果元素；A/BT 使用 K 主序，C 使用行�
 - FIFO 满禁止 push，FIFO 空禁止 pop；两条流共用同一 `stream_valid`，因此喂数期间
   两侧插入的等待空隙完全一致，不会破坏波前配对。
 - `valid_tm/valid_tn` 控制边界行/列 lane，越界 lane 补零。
-- `valid_tk` 控制 K Tile 实际读取长度，越界 K 不访问 RAM。
+- `valid_tk` 控制一个 K Tile 实际喂数拍数，越界 K 不访问 RAM；预取长度则是整个输出 Tile 的 K 个字。
 - `c_tile_write_ctrl` 不为越界 C 元素产生写请求。
 - `drain_done` 表示波前已走完最远端；`core_done` 表示最后一个 C 元素已经落入 RAM。
 - 预取 FIFO 深度 64，峰值占用为两个 K Tile（2×16）共 32 字，留一倍余量。

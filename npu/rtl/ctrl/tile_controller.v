@@ -9,8 +9,12 @@
 //   1. K Tile 之间不清累加器、不排空阵列。阵列在预取期间整体冻结，整条 skew
 //      管线一起保持偏移，所以跨 K Tile 的部分和留在 PE 累加器里连续累加。
 //      TK 因此只是延迟/面积参数，不再是"每个 K Tile 付一次排空+搬回"的性能开销。
-//   2. 预取与喂数重叠：喂第 k 个 K Tile 时用 pf_next_start 启动第 k+1 个的突发，
-//      预取延迟被喂数覆盖；FIFO 深度足够容纳两段，不会溢出丢弃。
+//   2. 预取与喂数重叠：一个输出 Tile 的 A/BT 数据在地址上是连续的一整段
+//      （A 在 tile_i*K + [0,K)，BT 在 tile_j*K + [0,K)），所以换输出 Tile 时
+//      一次发出整段 K 字的连续突发，喂数期间 FIFO 边填边被消费。
+//      旧实现按 K Tile 分段预取，每段 4 字要 5 拍而喂数只要 4 拍，每段净欠 1 拍，
+//      还要多付一次 S_PREFETCH 状态往返；整段突发后 16x16x16 的等预取 144 -> 0。
+//      突发长度 K <= 63 <= FIFO 深度 64，不会写满丢弃。
 //   3. 结果不回阵列外累加：排空时把 16 个累加器整块快照给 c_tile_write_ctrl，
 //      写回在后台完成，状态机直接进入下一个 Tile。快照是双 bank 的，状态机只等
 //      "有空闲 bank"（snap_ready）而不等写回排空；core_done 等所有 C 真正落 RAM。
@@ -62,7 +66,7 @@ module tile_controller(
     reg stream_start;
     reg [`NPU_ABUF_AW-1:0] a_pf_base;
     reg [`NPU_BBUF_AW-1:0] bt_pf_base;
-    reg [`NPU_TK_W-1:0]    pf_len;
+    reg [`NPU_DIM_W-1:0]   pf_len;
     reg [11:0] wr_cnt_next;
 
     // ---- 任务参数（start_ctrl 已经锁存，这里直接复用同一份快照）----
@@ -85,12 +89,6 @@ module tile_controller(
     wire [`NPU_DIM_W-1:0] rem_m = lb_m - tile_i * lp_tm;
     wire [`NPU_DIM_W-1:0] rem_n = lb_n - tile_j * lp_tn;
     wire [`NPU_DIM_W-1:0] rem_k = lb_k - tile_k * lb_tk;
-
-    // 下一个 K Tile 的长度。只在确实存在下一个 K Tile（!last_k_tile）时被使用，
-    // 所以 lb_k - (tile_k+1)*lb_tk 不会下溢到有用的判断里。
-    wire [`NPU_DIM_W-1:0] rem_k_next = lb_k - (tile_k + 6'd1) * lb_tk;
-    wire [`NPU_TK_W-1:0]  valid_tk_next = (rem_k_next > {1'b0, lb_tk}) ?
-                                          lb_tk : rem_k_next[`NPU_TK_W-1:0];
 
     reg last_k_tile, last_out_tile;
     reg [`NPU_TILE_W-1:0] valid_tm, valid_tn;
@@ -126,21 +124,21 @@ module tile_controller(
         valid_tk         = (rem_k > {1'b0, lb_tk}) ? lb_tk : rem_k[`NPU_TK_W-1:0];
     end
 
-    // ---- Tile 基地址（内部字地址）----
-    wire [`NPU_DIM_W+`NPU_DIM_W-1:0] a_word_off      = tile_i * lb_k + tile_k * lb_tk;
-    wire [`NPU_DIM_W+`NPU_DIM_W-1:0] bt_word_off     = tile_j * lb_k + tile_k * lb_tk;
-    wire [`NPU_DIM_W+`NPU_DIM_W-1:0] a_word_off_next = tile_i * lb_k + (tile_k + 6'd1) * lb_tk;
-    wire [`NPU_DIM_W+`NPU_DIM_W-1:0] bt_word_off_next = tile_j * lb_k + (tile_k + 6'd1) * lb_tk;
+    // ---- 预取基地址（内部字地址，单位是 32 位字）----
+    // 第 tile_i 组 A 数据是 tile_i*K 起的连续 K 个字，第 tile_j 组 BT 数据是
+    // tile_j*K 起的连续 K 个字（数据布局见文件头）；一个输出 Tile 只需要这一整段，
+    // K Tile 只是把这段切成喂数节拍，与预取地址无关。
+    // 合法配置保证 tile_i*K + K <= ceil(M/4)*K <= 64，不会越过 Buffer 末尾。
+    wire [`NPU_DIM_W+`NPU_DIM_W-1:0] a_tile_off  = tile_i * lb_k;
+    wire [`NPU_DIM_W+`NPU_DIM_W-1:0] bt_tile_off = tile_j * lb_k;
 
-    wire [`NPU_ABUF_AW-1:0] a_base      = a_word_off[`NPU_ABUF_AW-1:0];
-    wire [`NPU_BBUF_AW-1:0] bt_base     = bt_word_off[`NPU_BBUF_AW-1:0];
-    wire [`NPU_ABUF_AW-1:0] a_base_next = a_word_off_next[`NPU_ABUF_AW-1:0];
-    wire [`NPU_BBUF_AW-1:0] bt_base_next = bt_word_off_next[`NPU_BBUF_AW-1:0];
+    wire [`NPU_ABUF_AW-1:0] a_base  = a_tile_off[`NPU_ABUF_AW-1:0];
+    wire [`NPU_BBUF_AW-1:0] bt_base = bt_tile_off[`NPU_BBUF_AW-1:0];
     wire [`NPU_CBASE_W-1:0] c_base = (tile_i * lp_tm) * lb_n + tile_j * lp_tn;
 
     // ---- 主状态机 ----
     wire fsm_acc_clear, fsm_drain_en, fsm_array_enable, fsm_core_busy;
-    wire pf_start, pf_next_start, feed_go, fsm_done, cwr_idle;
+    wire pf_start, feed_go, fsm_done, cwr_idle;
     wire snap_ready;      // 有空闲快照 bank（c_tile_write_ctrl 输出）
 
     systolic_fsm u_systolic_fsm(
@@ -156,7 +154,7 @@ module tile_controller(
         .snap_ready(snap_ready),
         .sched_init(sched_init), .next_k_req(next_k_req), .next_out_req(next_out_req),
         .acc_clear(fsm_acc_clear),
-        .pf_start(pf_start), .pf_next_start(pf_next_start),
+        .pf_start(pf_start),
         .feed_go(feed_go), .drain_en(fsm_drain_en), .array_enable(fsm_array_enable),
         .fsm_done(fsm_done), .core_busy(fsm_core_busy)
     );
@@ -229,12 +227,11 @@ module tile_controller(
         pair_fire     = feed_go && (a_fifo_count != 0) && (bt_fifo_count != 0);
         fifo_pair_pop = pair_fire;
 
-        // 预取突发：pf_start 与 pf_next_start 互斥。前者在换输出 Tile 时启动
-        // 当前 K Tile 的预取，后者在进入喂数时启动下一个 K Tile 的预取。
-        stream_start = pf_start || pf_next_start;
-        a_pf_base    = pf_next_start ? a_base_next  : a_base;
-        bt_pf_base   = pf_next_start ? bt_base_next : bt_base;
-        pf_len       = pf_next_start ? valid_tk_next : valid_tk;
+        // 预取突发：换输出 Tile 时启动一次，长度是整个输出 Tile 的 K 个字。
+        stream_start = pf_start;
+        a_pf_base    = a_base;
+        bt_pf_base   = bt_base;
+        pf_len       = lb_k;
 
         wr_cnt_next = wr_cnt + {{(11){1'b0}}, c_wr_pulse};
 

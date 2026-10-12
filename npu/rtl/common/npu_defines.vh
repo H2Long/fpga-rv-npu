@@ -29,8 +29,9 @@
 `define NPU_CBUF_WORDS 256
 
 // ---- FIFO 深度 ----
-// A/BT 预取 FIFO：喂第 k 个 K Tile 时同时预取第 k+1 个，峰值占用
-// = 2*NPU_TK_MAX = 32 字，深度取 64 留一倍余量，保证重叠期间不会写满丢弃。
+// A/BT 预取 FIFO：预取的单位是"一个输出 Tile 在 K 方向上的整段连续数据"，
+// 长度等于 K。K 的上界由 A/BT 容量约束给出（ceil(M/4)*K <= 64）且不超过 63，
+// 所以峰值占用 = K 字 <= 63，深度取 64 刚好容纳且不会写满丢弃。
 `define NPU_FIFO_AW 6                  // 深度 64
 `define NPU_CWF_AW 5                   // C 写 FIFO 深度 32，一个 C Tile 最多 16 项
 

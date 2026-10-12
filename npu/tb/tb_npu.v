@@ -14,6 +14,7 @@
 //   G8  8x8x7  TK=1      最小 K Tile（每个 K Tile 只有 1 拍）
 //   G10 16x16x1 TK=1   写回压力：16 个输出 Tile、每块只喂 1 拍，Tile 周期最短，
 //                      专门压 C 写回快照 bank 的积压路径
+//   G11 4x4x63 TK=16   最大 K：整段预取突发 63 个字，正好顶到 64 深预取 FIFO 的边界
 //   G9  16x16x16 TK=1/4/8/16   同一 GEMM 换 TK，结果必须逐位一致
 //   GA  8x8x16 拆成两段 K=8 累加    accumulate 位（跨任务累加）
 //   GB  非法配置     超出 Buffer 容量的配置必须置 ERROR，不得进入 BUSY
@@ -582,6 +583,8 @@ module tb_npu;
             run_gemm_test("G8_K7_TK1            ", 8,  7,  7, 1, 0, 32'h8);
             // G10：写回压力用例——16 个输出 Tile、每块只喂 1 拍，Tile 周期最短
             run_gemm_test("G10_wr_pressure_16x16x1", 16, 16, 1, 1, 0, 32'hC3);
+            // G11：最大 K——A/BT 各用满 63 个字，整段预取突发顶到 FIFO 深度边界
+            run_gemm_test("G11_max_K_4x4x63_TK16 ", 4,  4, 63, 16, 0, 32'hC4);
 
             // G9：同一个 GEMM 换 TK 必须得到逐位相同的结果（验证累加器跨 K-tile 保留）
             $display("---- G9 TK 不变性（同一 GEMM，TK=1/2/4/8/16 结果必须一致）----");

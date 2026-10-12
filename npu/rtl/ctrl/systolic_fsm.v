@@ -4,22 +4,26 @@
 // 状态与转移（每个输出 Tile 走一遍 K 循环，只在 Tile 结束时排空一次）：
 //   S_IDLE       start_pulse 到来 -> S_INIT
 //   S_INIT       sched_init 复位 tile 计数器 -> S_CLEAR_ACC
-//   S_CLEAR_ACC  清 PE 累加器并启动第一个 K Tile 的预取；
+//   S_CLEAR_ACC  清 PE 累加器并启动本输出 Tile 的整段预取；
 //                等 snap_ready（有空闲快照 bank，本块结果有地方落）-> S_PREFETCH
-//   S_PREFETCH   等 A/BT FIFO 装满当前 K Tile -> S_FEED
-//   S_FEED       成对喂 valid_tk 拍；离开时启动下一个 K Tile 的预取；
-//                最后一个 K Tile -> S_DRAIN，否则 next_k_req -> S_PREFETCH
+//   S_PREFETCH   等 A/BT FIFO 各出现至少 1 个字（pair_ready）-> S_FEED
+//   S_FEED       成对喂 valid_tk 拍；喂完一个 K Tile 后
+//                最后一个 K Tile -> S_DRAIN，否则留在 S_FEED 直接进下一个 K Tile
+//                （next_k_req 只用来推进 tile_k 计数器，不再回 S_PREFETCH 绕一圈）
 //   S_DRAIN      保持阵列推进 P+Q-2 拍让波前走完
 //                -> 最后一个输出 Tile ? S_DONE : S_CLEAR_ACC
 //   S_DONE       等 core_done（最后一块 C 已落入 RAM）-> S_IDLE
 //
 // 关键时序约定：
-//   1. K Tile 之间不清累加器、不排空阵列，阵列在 S_PREFETCH 期间整体冻结。
-//      整条 skew 管线一起冻结会保持所有 lane 的相对偏移，恢复后波前无缝续接，
-//      所以跨 K Tile 的部分和留在 PE 里连续累加，TK 只是延迟/面积参数，
-//      不再是每个 K Tile 都要付一次的排空开销。
-//   2. 预取与喂数重叠：进入 S_FEED 时用 pf_next_start 启动下一个 K Tile 的突发，
-//      S_PREFETCH 只负责等数据到齐，通常可以立刻通过。
+//   1. K Tile 之间不清累加器、不排空阵列，跨 K Tile 的部分和留在 PE 里连续累加，
+//      TK 只是延迟/面积参数，不再是每个 K Tile 都要付一次的排空开销。
+//      喂数途中若 FIFO 暂时没数，S_FEED 原地等（array_enable 保持 1，valid=0 的
+//      空拍只会在管线里平移，不会累加），波前对齐不受影响。
+//   2. 预取与喂数重叠：一个输出 Tile 的 A/BT 数据在地址上是连续的一段
+//      （A: tile_i*K + [0,K)，BT: tile_j*K + [0,K)），所以 S_CLEAR_ACC 里一次发出
+//      整段 K 字的连续突发，S_PREFETCH 只等第一个字到就开喂。旧实现按 K Tile
+//      分段预取（每段 4 字要 5 拍、喂数只要 4 拍），每段净欠 1 拍并多付一次
+//      状态往返；整段突发后实测 16x16x16 的等预取从 144 拍降到 0。
 //   3. 排空后结果由 c_tile_write_ctrl 锁存成快照并在后台写回。快照有双 bank，
 //      状态机只等"有空闲 bank"（snap_ready），不等扫描结束、也不等写 FIFO 排空，
 //      所以写回的 16 拍扫描能被下一块 tile 的计算遮住；core_done 才代表全部
@@ -49,8 +53,7 @@ module systolic_fsm(
     output reg   next_k_req,
     output reg   next_out_req,
     output reg   acc_clear,
-    output reg   pf_start,         // 单拍：启动当前 K Tile 的预取
-    output reg   pf_next_start,    // 单拍：启动下一个 K Tile 的预取
+    output reg   pf_start,         // 单拍：启动本输出 Tile 的整段预取
     output reg   feed_go,
     output reg   drain_en,
     output reg   array_enable,
@@ -70,28 +73,33 @@ module systolic_fsm(
     reg [2:0] state;
     reg [5:0] feed_cnt;      // 已送入的 A/BT 数据对数
 
-    // 预取完成条件：两个 FIFO 都已经拥有当前 K Tile 的全部输入字。
-    // burst 只发 valid_tk 个请求，且每个 K Tile 正好被消费 valid_tk 次，
-    // 所以 count 不会跨 Tile 累积，>= 判断不会提前通过。
-    wire prefetch_done  = (a_fifo_count  >= {1'b0, valid_tk}) &&
-                          (bt_fifo_count >= {1'b0, valid_tk});
+    // 一对 A/BT 数据是否就绪：两个 FIFO 都非空就可以开喂。整段突发会让 FIFO
+    // 边填边被消费，早开喂能把突发的首字延迟和喂数重叠，所以不等满一个 K Tile。
+    // 每拍消费 1 对、突发每拍补 1 个字，稳态下 FIFO 深度只留几个字的余量。
+    wire pair_ready     = (a_fifo_count != 0) && (bt_fifo_count != 0);
     wire feed_beat_done = pair_fire && (feed_cnt + 6'd1 >= {1'b0, valid_tk});
+    wire is_beat_done   = (state == S_FEED) && feed_beat_done;
 
     always @(*) begin
         core_busy    = (state != S_IDLE);
         fsm_done     = (state == S_DONE);
         array_enable = feed_go || drain_en;
+        // next_k_req 必须是组合脉冲（完成当拍推进 tile_k 计数器），不能改成寄存：
+        // K Tile 背靠背喂数时（例如 TK=1，每拍喂完一个 K Tile），寄存脉冲会让
+        // tile_k 晚一拍更新，于是本模块在下一拍读到的 last_k_tile 还是旧值，
+        // 最后一个 K Tile 会被漏判、tile_k 冲过边界后卡在 S_FEED。
+        // 旧实现每个 K Tile 都回 S_PREFETCH 绕一圈，正好把这一拍让给计数器，
+        // 所以当时用寄存脉冲看不出问题。
+        next_k_req   = is_beat_done && !last_k_tile;
     end
 
     always @(posedge clk) begin
         if (rst) begin
             state         <= S_IDLE;
             sched_init    <= 1'b0;
-            next_k_req    <= 1'b0;
             next_out_req  <= 1'b0;
             acc_clear     <= 1'b0;
             pf_start      <= 1'b0;
-            pf_next_start <= 1'b0;
             feed_go       <= 1'b0;
             drain_en      <= 1'b0;
             feed_cnt      <= 6'd0;
@@ -100,11 +108,9 @@ module systolic_fsm(
             // acc_clear 也在这里清零：它是"换输出 Tile 时的电平"，只在 S_CLEAR_ACC
             // 里重新拉高，否则会一直保持高把累加器每拍清零。
             sched_init    <= 1'b0;
-            next_k_req    <= 1'b0;
             next_out_req  <= 1'b0;
             acc_clear     <= 1'b0;
             pf_start      <= 1'b0;
-            pf_next_start <= 1'b0;
 
             case (state)
                 S_IDLE: begin
@@ -132,11 +138,11 @@ module systolic_fsm(
 
                 // 预取已经与喂数重叠，这里通常只等最后几个字到齐。
                 // feed_cnt 必须在这里清零：每个 K Tile 都要重新数 valid_tk 拍。
+                // 整段预取已经发出，这里只等第一个字到；通常 3~4 拍后通过。
                 S_PREFETCH: begin
                     feed_cnt <= 6'd0;
-                    if (prefetch_done) begin
-                        pf_next_start <= !last_k_tile;
-                        state         <= S_FEED;
+                    if (pair_ready) begin
+                        state <= S_FEED;
                     end
                 end
 
@@ -145,12 +151,15 @@ module systolic_fsm(
                     if (pair_fire) begin
                         feed_cnt <= feed_cnt + 6'd1;
                         if (feed_beat_done) begin
-                            feed_go <= 1'b0;
                             if (last_k_tile) begin
-                                state <= S_DRAIN;
+                                feed_go <= 1'b0;
+                                state   <= S_DRAIN;
                             end else begin
-                                next_k_req <= 1'b1;
-                                state      <= S_PREFETCH;
+                                // 直接留在 S_FEED 进下一个 K Tile：预取是整块 tile 的
+                                // 连续突发，下一个 K Tile 的数据已经在 FIFO 里或正在
+                                // 路上；万一没到齐，pair_fire 自然为 0，在这里等即可。
+                                // tile_k 计数器由组合的 next_k_req 在当拍推进。
+                                feed_cnt <= 6'd0;
                             end
                         end
                     end

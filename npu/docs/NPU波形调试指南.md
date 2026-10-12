@@ -121,7 +121,8 @@ tb_npu.dut.u_tile_controller.valid_tm / valid_tn / valid_tk
 
 ```text
 tb_npu.dut.u_tile_controller.u_systolic_fsm.pf_start
-tb_npu.dut.u_tile_controller.u_systolic_fsm.pf_next_start
+tb_npu.dut.u_tile_controller.pf_len / a_pf_base        (整段预取的基址与长度)
+tb_npu.dut.u_tile_controller.a_fifo_count / bt_fifo_count
 tb_npu.dut.u_tile_controller.u_a_stream_ctrl.busy_out
 tb_npu.dut.npu_a_addr / npu_a_re
 tb_npu.dut.u_npu_buffer.a_ram_raddr / a_ram_re / a_ram_rdata
@@ -205,9 +206,9 @@ S_IDLE(0) -> S_INIT(1) -> S_CLEAR_ACC(2) -> S_PREFETCH(3) -> S_FEED(4)
 
 ```text
 S_CLEAR_ACC : acc_clear=1（冲掉上一次的累加值和残留波前），等 snap_ready 后发 pf_start
-S_PREFETCH  : array_enable=0，阵列整体冻结；FIFO count 涨到 valid_tk 后进入 FEED
+S_PREFETCH  : array_enable=0，阵列整体冻结；两侧 FIFO 各出现 1 个字（pair_ready）就进 FEED
 S_FEED      : array_enable=1，pair_fire 每拍弹出一对 A/BT；
-              同一拍 pf_next_start 启动下一个 K Tile 的预取（最后一个 K Tile 不发）
+              v2.4 起预取是"整块输出 Tile 的连续突发"，在 S_CLEAR_ACC 当拍一次发出
 S_DRAIN     : array_enable=1、drain_en=1，保持 P+Q-2=6 拍；drain_done 后进入 S_DONE
 S_DONE      : 等 core_done（wr_cnt 达到 M*N 且写回通路空闲）
 ```
@@ -215,8 +216,8 @@ S_DONE      : 等 core_done（wr_cnt 达到 M*N 且写回通路空闲）
 **多 K Tile 的任务（G2/G7）波形要点**：
 
 ```text
-S_FEED -> S_PREFETCH -> S_FEED -> ... （K/TK 次）
-· 中途的 S_PREFETCH 只有 1~2 拍：预取已经与上一次 FEED 重叠完成
+S_FEED 连续走完 nt_k 个 K Tile（v2.4 起 K Tile 之间不再回 S_PREFETCH）
+· 只有 FIFO 暂时空时才在 S_FEED 里原地等（pair_fire=0），数据一到立刻继续
 · 中途绝对不会出现 acc_clear=1 或 drain_en=1
 · 也不会有 S_DRAIN：整个输出 Tile 只在最后一次 K Tile 之后排空一次
 ```
@@ -341,7 +342,7 @@ K 方向结果少了/多了             -> K Tile 之间是否被清累加器或
                   dut.req_valid dut.u_ahb_lite_slave.state
 01_task_control : start_pulse core_busy core_done start_ctrl.state cfg_ok error_status
                   systolic_fsm.state tile_i tile_j tile_k valid_tm valid_tn valid_tk
-02_prefetch     : pf_start pf_next_start stream_ctrl.busy_out npu_a_re a_ram_raddr
+02_prefetch     : pf_start pf_len a_pf_base stream_ctrl.busy_out npu_a_re a_ram_raddr
                   a_fifo_push a_fifo_count fifo_pair_pop bt_fifo_count
 03_mac_input    : stream_valid a_stream_data bt_stream_data pair_fire
                   acc_clear array_enable drain_en drain_done

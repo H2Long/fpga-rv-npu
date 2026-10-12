@@ -39,7 +39,7 @@ module mon_top;
 
     wire clk = u_tb.HCLK;
     wire [2:0] st   = u_tb.dut.u_tile_controller.u_systolic_fsm.state;
-    wire       pfrd = u_tb.dut.u_tile_controller.u_systolic_fsm.prefetch_done;
+    wire       pfrd = u_tb.dut.u_tile_controller.u_systolic_fsm.pair_ready;
     wire       snpr = u_tb.dut.u_tile_controller.u_systolic_fsm.snap_ready;
     wire       pair = u_tb.dut.u_tile_controller.pair_fire;
     wire       cap  = u_tb.dut.u_tile_controller.u_c_tile_write_ctrl.cap_fire;
