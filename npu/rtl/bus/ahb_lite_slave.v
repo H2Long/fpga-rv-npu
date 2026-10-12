@@ -1,68 +1,94 @@
 `timescale 1ns / 1ps
 // ahb_lite_slave — ARM AHB-Lite 从机接口（NPU 唯一的 CPU 总线入口）
 //
-// 本模块把 AHB-Lite 的一次传输翻译成 NPU 内部的原生请求序列
-// (req_addr/req_wdata/req_byte_en/req_we/req_valid)，下游的地址译码、
-// control_regs、start_ctrl、buffer_access_ctrl 完全不需要知道 AHB 的存在。
-// 原 mmio_if 已被本模块取代，NPU 不再保留私有 MMIO 总线。
+// 1) 模块位置和职责
+//    位于 npu_system 顶层与 npu_top 之间，是 NPU 对外的唯一总线接口。它只做
+//    协议翻译：把 AHB-Lite 的一次传输翻译成 NPU 内部的原生请求
+//    (req_addr/req_wdata/req_byte_en/req_we/req_valid)，不包含任何 NPU 语义。
+//    下游的地址译码、control_regs、start_ctrl、buffer_access_ctrl 都不需要
+//    知道 AHB 的存在。原 mmio_if 已被本模块取代。
 //
-// AHB-Lite 时序约定（改动前必须理解，否则会丢传输或协议违规）：
-//   1. 一次传输分"地址阶段"和"数据阶段"，数据阶段紧跟在地址阶段之后。
-//      本从机在地址阶段（HSEL && HTRANS[1] && HREADY_in 成立那一拍）锁存
-//      地址，在下一拍（S_DATA，数据阶段）发出内部请求 req_valid。
-//   2. 传输完成的那一拍（HREADYOUT=1）同时也是下一笔传输的地址阶段，所以
-//      cap_now 分支必须在完成拍就地锁存下一笔的地址；漏掉这条会让背靠背
-//      传输静默丢失（只执行第 1、3、5… 笔），这是自己写 AHB 从机最常见的错。
-//   3. HREADYOUT=0 表示等待。寄存器访问和 Buffer 写是 0 等待（每拍一笔，
-//      可背靠背流水）；Buffer 读因为 npu_ram 是同步读，要多等 1 拍。
-//   4. 错误响应 HRESP=ERROR 必须持续两拍：第一拍 HREADYOUT=0，第二拍
-//      HREADYOUT=1。只拉一拍 master 采不到（ARM AHB-Lite 协议要求）。
-//   5. 复位期间 HREADYOUT 必须为 1、HRESP 必须为 OKAY。
-//   6. HTRANS=IDLE/BUSY 不是传输；HBURST 不参与译码，INCR 突发的每个 beat
-//      都会被当成一次独立传输正常处理。
+// 2) 数据布局、位宽和单位
+//    HADDR   ：字节地址，本从机只接受 32 位字访问，因此 HADDR[1:0] 必须为 0。
+//    HWDATA  ：32 位写数据，只在数据阶段有效（地址阶段不必驱动）。
+//    HRDATA  ：32 位读数据，只要求在 HREADYOUT=1 那一拍有效，其余时间不关心。
+//    req_addr：相对 ADDR_BASE 的字节地址（= HADDR - ADDR_BASE），字索引为
+//              req_addr[NPU_*BUF_AW+1:2]；req_wdata/req_byte_en 与它同拍有效。
+//    core_busy：来自 tile_controller，为 1 表示 NPU 正在使用 A/BT/C Buffer。
 //
-// 地址：HADDR 减去 ADDR_BASE 之后才是 NPU 内部字地址。内部译码仍由 npu_top
-// 完成（sel_ctrl/sel_status/sel_a_buf/sel_bt_buf/sel_c_buf），本模块不重复
-// 定义地址映射，避免两处常量漂移。
+// 3) 时序延迟
+//    一次传输分"地址阶段"和"数据阶段"，数据阶段紧跟在地址阶段之后：
+//      地址阶段：HSEL=1 且 HTRANS=NONSEQ/SEQ，本模块在结束沿锁存地址；
+//      数据阶段：S_DATA 状态，req_valid 单拍有效，并把内部请求发给下游。
+//    寄存器访问和 Buffer 写是 0 等待，数据阶段当拍完成（HREADYOUT=1）；
+//    Buffer 读因为 npu_ram 是同步读（请求后一拍返回），要多等 1 拍。
+//    完成拍同时也是下一笔传输的地址阶段，所以背靠背访问可以每拍接受一笔。
 //
-// 错误响应条件（都要回 ERROR，不再静默忽略）：
-//   a) 未映射地址：五个 sel 全为 0（原设计"读回 0、写忽略"是私有总线的将就
-//      做法，在 AHB 上等于协议违规，软件写错地址永远发现不了）；
-//   b) 非 32 位字访问：HSIZE != 3'b010 或 HADDR[1:0] != 0；
-//   c) core_busy=1 期间访问 A/BT/C Buffer：原 buffer_access_ctrl 会把请求丢掉
-//      但仍然应答成功，软件会以为数据写进去了。buffer_access_ctrl 的屏蔽
-//      保留作为最后一道防线，本模块负责把错误如实报给 CPU。
-// 错误路径比正常路径多 1 拍等待（译码结果在数据阶段才有效），不影响正常通路。
+// 4) 复位后的状态和状态机主要转移
+//    内部使用项目统一的 clk/rst（高有效同步复位，见编码规范 4.1）；AHB 的
+//    HCLK/HRESETn 由 npu_system 转换（rst = !HRESETn）。复位后 state=S_IDLE。
+//      S_IDLE  等有效地址阶段，HREADYOUT=1；
+//      S_DATA  发内部请求：0 等待访问当拍完成、Buffer 读转 S_RDD、
+//              错误条件转 S_ERR1；
+//      S_RDD   Buffer 读数据返回拍；
+//      S_ERR1  错误响应第 1 拍（HRESP=ERROR 且 HREADYOUT=0）；
+//      S_ERR2  错误响应第 2 拍（HRESP=ERROR 且 HREADYOUT=1）。
+//    每个状态的入口、保持、退出条件见文件下方的 localparam 说明。
+//
+// 5) 边界条件、错误处理和不能修改的接口假设
+//    · 错误响应（HRESP=ERROR，必须两拍，一拍 master 采不到）：
+//      a) 未映射地址：译码后五个 sel 全为 0。旧设计"读回 0、写忽略"是私有
+//         总线的将就做法，在 AHB 上等于协议违规，软件写错地址永远发现不了；
+//      b) 非 32 位字访问：HSIZE != 3'b010 或 HADDR[1:0] != 0；
+//      c) core_busy=1 期间访问 A/BT/C Buffer：旧 buffer_access_ctrl 会把请求
+//         丢掉却仍然应答成功，软件会以为数据写进去了；该屏蔽保留作为最后一道
+//         防线，本模块负责把错误如实报给 CPU。
+//      错误路径比正常路径多 1 拍等待（译码结果在数据阶段才有效），不影响正常通路。
+//    · 接口假设：req_* / sel_* / *_rdata 的定义与旧 mmio_if 输出完全一致，
+//      npu_top 的译码和寄存器逻辑依赖这个定义，不要改动它们的位宽和语义。
+//      内部译码仍由 npu_top 完成，本模块不重复定义地址映射，避免两处常量漂移。
+//
+// 端口命名说明：AHB-Lite 是 ARM 公开协议，HSEL/HADDR/HTRANS/HWDATA/HRDATA/
+// HREADYOUT/HRESP 等端口沿用协议规范名（编码规范 2.2 的 _in/_out 后缀建议在此
+// 让位于与协议文档的逐字对照性）；只有 HREADY_in 需要与本模块输出的 HREADYOUT
+// 区分，故按约定加 _in 后缀。
 module ahb_lite_slave #(
     parameter [31:0] ADDR_BASE = 32'h4000_0000
 )(
-    input              HCLK,
-    input              HRESETn,        // AHB 复位，低有效
+    input              clk,
+    input              rst,
     // ---- AHB-Lite 从机接口 ----
     input              HSEL,
     input       [31:0] HADDR,
     input       [1:0]  HTRANS,
     input              HWRITE,
     input       [2:0]  HSIZE,
-    input       [31:0] HWDATA,         // 只在数据阶段有效
-    input              HREADY_in,      // 互连回送的全局 HREADY
+    input       [31:0] HWDATA,
+    input              HREADY_in,
     output reg  [31:0] HRDATA,
     output reg         HREADYOUT,
     output reg  [1:0]  HRESP,
     // ---- NPU 运行状态 ----
-    input              core_busy,      // 来自 tile_controller
-    // ---- 下游原生请求（定义与旧 mmio_if 输出一致）----
+    input              core_busy,
+    // ---- 下游原生请求(定义与旧 mmio_if 输出一致) ----
     output reg  [31:0] req_addr,
     output reg  [31:0] req_wdata,
     output reg  [3:0]  req_byte_en,
     output reg         req_we,
-    output reg         req_valid,      // 数据阶段单拍有效
+    output reg         req_valid,
     // ---- 来自 npu_top 的译码与读数据 ----
-    input              sel_ctrl, sel_status,
-    input              sel_a_buf, sel_bt_buf, sel_c_buf,
-    input       [31:0] control_rdata, status_rdata, buffer_rdata
+    input              sel_ctrl,
+    input              sel_status,
+    input              sel_a_buf,
+    input              sel_bt_buf,
+    input              sel_c_buf,
+    input       [31:0] control_rdata,
+    input       [31:0] status_rdata,
+    input       [31:0] buffer_rdata
 );
 
+    // HTRANS 与 HRESP 的协议编码(ARM AHB-Lite)。HTRANS_IDLE/HTRANS_BUSY 都不算
+    // 传输，判定时只需识别 NONSEQ/SEQ，这里列全是为了对照协议编码表。
     localparam [1:0] HTRANS_IDLE   = 2'b00;
     localparam [1:0] HTRANS_BUSY   = 2'b01;
     localparam [1:0] HTRANS_NONSEQ = 2'b10;
@@ -70,11 +96,18 @@ module ahb_lite_slave #(
     localparam [1:0] HRESP_OKAY    = 2'b00;
     localparam [1:0] HRESP_ERROR   = 2'b01;
 
-    // 状态与转移：
-    //   S_IDLE 等地址阶段 -> S_DATA；
-    //   S_DATA 发请求：寄存器/Buffer 写当拍完成 -> 就地接下一笔或回 S_IDLE；
-    //          Buffer 读 -> S_RDD（等同步 RAM 数据）；错误 -> S_ERR1；
-    //   S_RDD 回数据并接下一笔；S_ERR1 -> S_ERR2；S_ERR2 接下一笔。
+    // 状态编码。每个状态的入口/保持/退出条件：
+    //   S_IDLE 入口：复位或上一笔传输结束。保持：没有有效地址阶段。
+    //          退出：cap_now 成立时锁存地址并转 S_DATA。
+    //   S_DATA 入口：刚接受一笔传输。保持：错误条件或 Buffer 读等待期间由
+    //          HREADYOUT=0 延长数据阶段。退出：0 等待访问当拍完成（直接接
+    //          下一笔或回 S_IDLE）；Buffer 读转 S_RDD；错误转 S_ERR1。
+    //   S_RDD  入口：Buffer 读发出了请求。保持：1 拍等同步 RAM 数据。
+    //          退出：无条件，按 cap_now 接下一笔或回 S_IDLE。
+    //   S_ERR1 入口：数据阶段判定为错误。保持：1 拍(HRESP=ERROR,HREADYOUT=0)。
+    //          退出：无条件转 S_ERR2。
+    //   S_ERR2 入口：错误响应第 2 拍。保持：1 拍(HRESP=ERROR,HREADYOUT=1)。
+    //          退出：按 cap_now 接下一笔或回 S_IDLE。
     localparam [2:0]
         S_IDLE = 3'd0,
         S_DATA = 3'd1,
@@ -83,31 +116,34 @@ module ahb_lite_slave #(
         S_ERR2 = 3'd4;
 
     reg [2:0]  state;
-    reg [31:0] addr_q;      // 本笔传输的内部地址（已减基址）
-    reg        write_q;
+    reg [31:0] addr_q;      // 本笔传输的内部字节地址(已减基址)
+    reg        write_q;     // 本笔传输的方向
     reg        size_ok_q;   // 地址阶段采到的 HSIZE / 对齐检查结果
 
+    // 组合中间结果。全部在 always @(*) 中赋值，无隐含锁存器。
+    reg [31:0] addr_off;    // HADDR 减基址后的内部字节地址
     reg        bus_phase;   // 本拍总线上是有效地址阶段
     reg        cap_now;     // 本拍接受下一笔地址
-    reg        is_buf;
-    reg        mapped;
-    reg        err_now;
-    reg [31:0] off_w;
+    reg        is_buf;      // 本笔访问 A/BT/C Buffer
+    reg        mapped;      // 本笔访问落在已映射窗口内
+    reg        err_now;     // 本笔访问需要回 ERROR
 
     always @(*) begin
-        off_w     = HADDR - ADDR_BASE;
+        addr_off  = HADDR - ADDR_BASE;
         bus_phase = HSEL && ((HTRANS == HTRANS_NONSEQ) || (HTRANS == HTRANS_SEQ))
                     && HREADY_in;
-        // 接受下一笔地址的条件：本拍自己的传输已经完成（HREADYOUT=1）且总线上
-        // 是有效地址阶段。S_IDLE 下没有在途传输，同样成立。
+        // 接受下一笔地址的条件：本拍自己的传输已经完成(HREADYOUT=1)且总线上是
+        // 有效地址阶段。S_IDLE 下没有在途传输，同样成立。漏掉"完成拍就地锁存"
+        // 会让背靠背访问只执行第 1、3、5… 笔，这是自己写 AHB 从机最常见的错。
         cap_now   = bus_phase && HREADYOUT;
 
-        // 译码结果来自 addr_q，所以错误判断在数据阶段才有效。
         is_buf  = sel_a_buf || sel_bt_buf || sel_c_buf;
         mapped  = sel_ctrl || sel_status || is_buf;
         err_now = !mapped || !size_ok_q || (core_busy && is_buf);
 
         // ---- 下游原生请求 ----
+        // req_valid 是 Moore 型输出：state=S_DATA 期间每个周期对应一笔已被接受的
+        // 传输，所以它天然是"每笔一拍"的脉冲，与旧 mmio_if 的 req_valid 语义相同。
         req_addr    = addr_q;
         req_wdata   = HWDATA;
         req_we      = write_q;
@@ -118,22 +154,23 @@ module ahb_lite_slave #(
         HRDATA    = sel_ctrl   ? control_rdata :
                     sel_status ? status_rdata  : buffer_rdata;
         // HREADYOUT=0 只在两种场合：Buffer 读等同步 RAM 数据、错误响应的第 1 拍。
-        // 空闲（S_IDLE）必须是 1，否则总线上永远不出现有效地址阶段。
+        // 空闲(S_IDLE)必须是 1，否则总线上永远不出现有效地址阶段。
         HREADYOUT = ((state == S_DATA) && (err_now || (is_buf && !write_q))) ? 1'b0 :
                     (state == S_ERR1) ? 1'b0 : 1'b1;
         HRESP     = ((state == S_ERR1) || (state == S_ERR2)) ? HRESP_ERROR : HRESP_OKAY;
     end
 
-    always @(posedge HCLK) begin
-        if (!HRESETn) begin
+    always @(posedge clk) begin
+        if (rst) begin
             state     <= S_IDLE;
             addr_q    <= 32'd0;
             write_q   <= 1'b0;
             size_ok_q <= 1'b0;
-        end else begin
-            // 完成拍就地锁存下一笔地址（见文件头第 2 条）
+        end
+        else begin
+            // 完成拍就地锁存下一笔地址(见 cap_now 的说明)
             if (cap_now) begin
-                addr_q    <= off_w;
+                addr_q    <= addr_off;
                 write_q   <= HWRITE;
                 size_ok_q <= (HSIZE == 3'b010) && (HADDR[1:0] == 2'd0);
             end
@@ -144,9 +181,11 @@ module ahb_lite_slave #(
                 S_DATA: begin
                     if (err_now) begin
                         state <= S_ERR1;
-                    end else if (is_buf && !write_q) begin
+                    end
+                    else if (is_buf && !write_q) begin
                         state <= S_RDD;      // 同步 RAM 读，数据下一拍回来
-                    end else begin
+                    end
+                    else begin
                         state <= cap_now ? S_DATA : S_IDLE;
                     end
                 end
@@ -159,7 +198,9 @@ module ahb_lite_slave #(
                 S_ERR2: begin
                     state <= cap_now ? S_DATA : S_IDLE;
                 end
-                default: state <= S_IDLE;
+                default: begin
+                    state <= S_IDLE;
+                end
             endcase
         end
     end

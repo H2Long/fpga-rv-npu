@@ -31,16 +31,24 @@ module npu_system #(
     input       [2:0]  HSIZE,
     input       [31:0] HWDATA,
     input              HREADY,         // 互连回送的全局 HREADY
-    output      [31:0] HRDATA,         // 以下三个由 ahb_lite_slave 驱动，故为 wire
-    output             HREADYOUT,
-    output      [1:0]  HRESP
+    output reg  [31:0] HRDATA,
+    output reg         HREADYOUT,
+    output reg  [1:0]  HRESP
 );
 
-    // 内部高有效复位：项目其余模块统一使用 if (rst) 的同步高有效复位。
+    // 内部高有效复位：全项目统一使用 if (rst) 的同步高有效复位（编码规范 4.1，
+    // 不允许模块内部出现异步低有效 rst_n 形式）。AHB 的 HRESETn 只在本模块的
+    // 端口上出现，进入内部即转换为 rst。上板时 HRESETn 的释放沿应与 HCLK 同步。
     reg rst;
     always @(*) begin
         rst = !HRESETn;
     end
+
+    // ahb_lite_slave 的输出先接内部 wire，再在 always @(*) 里转发到端口：
+    // Verilog-2001 不允许实例输出直接驱动 reg 端口(见编码规范 2.1/5)。
+    wire [31:0] hrdata_w;
+    wire        hreadyout_w;
+    wire [1:0]  hresp_w;
 
     // ahb_lite_slave 与 npu_top 之间的原生请求接口。
     wire [31:0] req_addr, req_wdata;
@@ -90,10 +98,10 @@ module npu_system #(
 
     // ============ ahb_lite_slave ============
     ahb_lite_slave #(.ADDR_BASE(ADDR_BASE)) u_ahb_lite_slave(
-        .HCLK(HCLK), .HRESETn(HRESETn),
+        .clk(HCLK), .rst(rst),
         .HSEL(HSEL), .HADDR(HADDR), .HTRANS(HTRANS), .HWRITE(HWRITE),
         .HSIZE(HSIZE), .HWDATA(HWDATA), .HREADY_in(HREADY),
-        .HRDATA(HRDATA), .HREADYOUT(HREADYOUT), .HRESP(HRESP),
+        .HRDATA(hrdata_w), .HREADYOUT(hreadyout_w), .HRESP(hresp_w),
         .core_busy(core_busy),
         .req_addr(req_addr), .req_wdata(req_wdata),
         .req_byte_en(req_byte_en), .req_we(req_we), .req_valid(req_valid),
@@ -102,6 +110,12 @@ module npu_system #(
         .control_rdata(control_rdata), .status_rdata(status_rdata),
         .buffer_rdata(buffer_rdata)
     );
+
+    always @(*) begin
+        HRDATA    = hrdata_w;
+        HREADYOUT = hreadyout_w;
+        HRESP     = hresp_w;
+    end
 
     // ============ npu_top ============
     npu_top u_npu_top(

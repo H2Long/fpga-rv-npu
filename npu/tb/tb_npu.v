@@ -63,7 +63,7 @@ module tb_npu;
     wire [31:0] HRDATA;
     wire        HREADYOUT;
     wire [1:0]  HRESP;
-    wire        HREADY = HREADYOUT;   // 单从机系统：全局 HREADY 回接 HREADYOUT
+    reg         HREADY;               // 单从机系统：全局 HREADY 回接 HREADYOUT
 
     integer cycle_cnt;
     integer ahb_err;      // 非预期 ERROR 响应计数
@@ -75,6 +75,10 @@ module tb_npu;
         .HSIZE(HSIZE), .HWDATA(HWDATA), .HREADY(HREADY),
         .HRDATA(HRDATA), .HREADYOUT(HREADYOUT), .HRESP(HRESP)
     );
+
+    always @(*) begin
+        HREADY = HREADYOUT;           // 单从机：互连的全局 HREADY 就是本从机的 HREADYOUT
+    end
 
     always #5 HCLK = ~HCLK;
     always @(posedge HCLK) cycle_cnt <= cycle_cnt + 1;
@@ -109,6 +113,7 @@ module tb_npu;
         HWRITE = 1'b0;
         HSIZE = 3'b010;
         HWDATA = 32'd0;
+        HREADY = 1'b1;
         cycle_cnt = 0;
         ahb_err = 0;
         ahb_stall = 0;

@@ -40,9 +40,9 @@ module npu_top(
     output reg        sel_a_buf,
     output reg        sel_bt_buf,
     output reg        sel_c_buf,
+    output reg [31:0] control_rdata,
     output reg [31:0] status_rdata,
     output reg [31:0] buffer_rdata,
-    output     [31:0] control_rdata,   // 由 control_regs 驱动，故为 wire 而非 reg
     // 到 tile_controller（启动脉冲 + 锁存后的任务参数）
     output reg        start_pulse,
     output reg [`NPU_DIM_W-1:0]  cfg_m, cfg_n, cfg_k,
@@ -70,6 +70,8 @@ module npu_top(
     reg [2:0]  ctrl_reg_off;
 
     wire [31:0] buffer_rdata_w;
+    // control_regs 的输出先接内部 wire，再在 always @(*) 里转发到端口
+    wire [31:0] control_rdata_w;
 
     // start_ctrl 的锁存参数：任务开始后由 m_l..qs_l 保持到任务结束。
     wire [`NPU_DIM_W-1:0]  m_l, n_l, k_l;
@@ -116,7 +118,7 @@ module npu_top(
         .cfg_m(cr_m), .cfg_n(cr_n), .cfg_k(cr_k),
         .cfg_tk(cr_tk), .cfg_qshift(cr_qs), .cfg_accumulate(cr_accumulate),
         .start_req(start_req), .clear_done_req(clear_done_req),
-        .control_rdata(control_rdata)
+        .control_rdata(control_rdata_w)
     );
 
     // ---- 状态寄存器读数据 ----
@@ -156,6 +158,7 @@ module npu_top(
     );
 
     always @(*) begin
+        control_rdata   = control_rdata_w;
         buffer_rdata    = buffer_rdata_w;
         start_pulse     = start_pulse_w;
         // 对 tile_controller 输出锁存后的任务参数：运行期间软件改动不影响当前任务。
