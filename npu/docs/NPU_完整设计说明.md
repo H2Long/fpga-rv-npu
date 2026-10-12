@@ -11,7 +11,7 @@
 - 三层 tile 循环（tile_i/tile_j/tile_k），TM=TN=4 固定，TK 可配 1..16
 - 边界 tile 越界行/列补零，越界 k 不读取，越界 C 项不写回
 - K 方向部分和**留在 PE 累加器里连续累加**：K Tile 之间不清累加器、不排空阵列
-- 排空结束时把 16 个累加器整块锁存成快照，写回与下一个输出 Tile 的计算并行
+- 排空结束时把 16 个累加器整块锁存成快照（双 bank），写回与下一个输出 Tile 的计算并行
 - `ACC_CFG.accumulate=1` 时结果在 C Buffer 上累加，支持把 K 分段用多次任务累加
 - 启动时校验配置（范围 + Buffer 容量），非法配置置 `STATUS.ERROR` 且不进入 BUSY
 - CPU 通过 MMIO 配置、启动、查询状态、装载/读取 Buffer；运行期间（core_busy=1）CPU 端口被封锁
@@ -76,7 +76,7 @@ tile 基地址：`A 字基址 = tile_i*K + tile_k*TK`，`BT 字基址 = tile_j*K
 
 ```text
 1. CLEAR_ACC   : 清 PE 累加器并冲刷残留波前，同时启动第一个 K Tile 的预取
-                 （此状态还会等 cwr_idle，保证上一块的写回快照已被消费）
+                 （此状态只等 snap_ready：有空闲快照 bank 就放行，不等写回排空）
 2. PREFETCH    : 等 A/BT FIFO 装满当前 K Tile。下一个 K Tile 的预取已经在
                  上一步的 FEED 期间启动，所以这里通常一拍通过
 3. FEED        : 两侧 FIFO 都有数据时每拍成对弹出 A/BT，喂 valid_tk 拍；
@@ -105,7 +105,7 @@ tile 基地址：`A 字基址 = tile_i*K + tile_k*TK`，`BT 字基址 = tile_j*K
 |---|---:|---:|
 | 4×4×4，TK=4 | 48 | 8% |
 | 16×16×16，TK=2 | 1116 | 22% |
-| 16×16×16，TK=4 | 956 | 26% |
+| 16×16×16，TK=4 | 698 | 37% |
 | 16×16×16，TK=16 | 1004 | 25% |
 | 8×8×32，TK=4 | 360 | 35% |
 | 8×8×32，TK=16 | 336 | 38% |
@@ -114,12 +114,13 @@ tile 基地址：`A 字基址 = tile_i*K + tile_k*TK`，`BT 字基址 = tile_j*K
 
 1. `TK` 现在只是流水长度参数：TK=2/4/16 的性能差别在 15% 以内
    （v2.0 中 TK=4 比 TK=16 慢 2.2 倍，因为每个 K Tile 都要排空一次）；
-2. 16×16×16 是单个任务的最大规模（A/BT 各用满 64 字），从 v2.0 的 3031 拍降到 956 拍；
+2. 16×16×16 是单个任务的最大规模（A/BT 各用满 64 字），从 v2.0 的 3031 拍降到 v2.1 的 956 拍、
+   v2.3 的 698 拍（快照双 bank 去掉了每块 tile 等写回扫描的 15 拍）；
 3. 剩余时间主要花在 CPU 的 MMIO 装载与 C 回读上——这部分只能靠 §16 的 DMA 解决。
 
 ## 7. 验证覆盖（回归网）
 
-`tb/tb_npu.v` 共 19 项自校验用例，全部通过（`PASS=19 FAIL=0`）：
+`tb/tb_npu.v` 共 25 项自校验用例，全部通过（`PASS=25 FAIL=0`）：
 
 | 用例 | 覆盖点 |
 |---|---|
@@ -132,9 +133,13 @@ tile 基地址：`A 字基址 = tile_i*K + tile_k*TK`，`BT 字基址 = tile_j*K
 | G7 8×8×16 TK=4 q=4 | 多 K Tile 且 qshift>0 |
 | G8 8×7×7 TK=1 | 最小 K Tile（每 K Tile 只有 1 拍） |
 | G9 8×8×16 TK=1/2/4/8/16 | **TK 不变性**：同一 GEMM 换 TK 结果必须逐位一致 |
+| G10 16×16×1 TK=1 | **写回压力**：16 个输出 Tile、每块只喂 1 拍，Tile 周期最短，压 C 写回快照 bank 的积压路径 |
 | GA 8×8×16 拆两段 K=8 | **跨任务累加** `ACC_CFG.accumulate` |
 | GB1~GB4 | 非法配置（超 A 容量 / 超 C 容量 / TK 超范围 / K=0）必须置 ERROR 且不进入 BUSY |
 | GC | 非法配置之后必须能正常恢复 |
+| AH1 / AH5 | AHB-Lite **背靠背流水写 / 读**（完成拍必须接受下一笔地址） |
+| AH2 / AH3 | 未映射地址、非 32 位访问必须回 `HRESP=ERROR` 且严格两拍 |
+| AH4 | `BUSY=1` 期间访问 Buffer 必须回 `HRESP=ERROR` |
 
 数据为固定种子随机 INT8（含负数），期望值由测试台按同一量化公式独立计算。
 `sim/logs/npu_sim.log` 是最近一次完整回归的日志。
@@ -203,7 +208,7 @@ RTL 按 Verilog-2001（`iverilog -g2001`）编译，与 `scripts/run_npu.py` 的
 |---|---|---|
 | `tile_controller` | `ctrl/tile_controller.v` | Tile 循环、地址生成、预取/喂数时序、完成计数 |
 | `systolic_fsm` | `ctrl/systolic_fsm.v` | 7 状态任务机：清累加器、预取、喂数、排空、完成 |
-| `c_tile_write_ctrl` | `ctrl/c_tile_write_ctrl.v` | 结果快照、边界过滤、扫描写回（内含 `result_quantizer`）|
+| `c_tile_write_ctrl` | `ctrl/c_tile_write_ctrl.v` | 结果快照（双 bank）、边界过滤、扫描写回（内含 `result_quantizer`）|
 
 ### 10.3 Buffer 与搬运平面
 
@@ -293,13 +298,13 @@ C 一个 32 位字保存一个结果元素；A/BT 使用 K 主序，C 使用行�
 3.  CPU 写 CTRL.start
 4.  start_ctrl 校验配置；非法则置 ERROR 并停在 ERROR 状态，合法则锁存参数并产生 start_pulse
 5.  systolic_fsm 从 S_IDLE 进入 S_INIT，复位三层 Tile 计数器
-6.  S_CLEAR_ACC：清 PE 累加器（冲刷波前），等 cwr_idle 后启动第一个 K Tile 的预取
+6.  S_CLEAR_ACC：清 PE 累加器（冲刷波前），等 snap_ready（有空闲快照 bank）后启动第一个 K Tile 的预取
 7.  两个 npu_stream_ctrl 各自发出 valid_tk 个读请求，数据进入 A/BT 预取 FIFO
 8.  S_FEED：每拍成对弹出 A/BT，拆包后经 skew 管线注入阵列；
     进入 FEED 的同时启动下一个 K Tile 的预取
 9.  下一个 K Tile 之前不排空、不清累加器，阵列在 S_PREFETCH 期间整体冻结 ⇒ 无缝续算
 10. 所有 K Tile 结束后 S_DRAIN：保持阵列推进 P+Q-2 = 6 个使能拍
-11. 排空完成那一拍把 16 个累加器连同 C 基地址、边界尺寸锁存成快照
+11. 排空完成那一拍把 16 个累加器连同 C 基地址、边界尺寸锁存成快照（写入空闲的那组 bank）
 12. 快照扫描 16 个 lane：量化 → 入 C 写 FIFO → 写入 C RAM（accumulate=1 时先读原值相加）
 13. 下一个输出 Tile 立刻开始计算，写回在后台进行
 14. 最后一笔 C 写完成后 core_done 拉高，start_ctrl 进入 ST_DONE

@@ -6,7 +6,7 @@
 
 ```text
 npu/
-├── rtl/                      NPU Verilog-2001 RTL，按功能平面分组（21 个 .v）
+├── rtl/                      NPU Verilog-2001 RTL，按功能平面分组（20 个 .v）
 │   ├── common/               公共宏定义、RAM、FIFO 和读突发控制
 │   ├── bus/                  AHB-Lite 从机接口（NPU 唯一的 CPU 总线）
 │   ├── top/                  系统顶层、请求译码/控制和启动校验
@@ -14,7 +14,7 @@ npu/
 │   ├── buffer/               A/BT/C Buffer、数据搬运和跨任务累加
 │   └── mac/                  INT8 拆包、PE 阵列、波前对齐和排空计数
 ├── tb/tb_npu.v               NPU AHB-Lite 行为测试台（19 项回归 + 5 项 AHB 协议用例）
-├── scripts/                  NPU 仿真和绘图脚本
+├── scripts/                  NPU 仿真、周期账本和绘图脚本
 ├── docs/NPU_完整设计说明.md   当前 RTL 设计说明
 ├── docs/地址与寄存器表.md     AHB-Lite 地址映射和全部寄存器定义
 ├── docs/版本更新说明.md       各版本模块、信号和数据流变化
@@ -31,7 +31,7 @@ npu/
 - 4x4 INT8 输出驻留式脉动阵列，PE 累加器在 K Tile 之间连续累加
 - A/BT/C 片上 Buffer 和预取/写回 FIFO，预取与喂数重叠
 - M/N/K、TK、量化右移配置，TM=TN=4 固定
-- Tile 调度、边界补零、结果快照与并行写回
+- Tile 调度、边界补零、结果快照（双 bank）与并行写回
 - `ACC_CFG.accumulate` 跨任务累加，支持把 K 分段
 - 启动前配置校验，非法配置置 `STATUS.ERROR` 而不是锁死
 - AHB 启动、状态查询和 C Buffer 读取；未映射地址、非 32 位访问、忙时访问 Buffer 都回 `HRESP=ERROR`
@@ -43,19 +43,22 @@ cd npu
 python3 scripts/run_npu.py
 # 只运行最简单的 4x4x4 单 Tile 仿真
 python3 scripts/run_npu.py --simple
+# 打印每个任务的周期账本（各状态拍数与停顿原因），用于验证优化到底省了哪一段
+python3 scripts/cycle_ledger.py
 ```
 
 当前测试台覆盖单 Tile、最大规模多 Tile、多 K Tile、非整除边界、负数量化、
 TK 不变性、跨任务累加、非法配置拒绝，以及 5 项 AHB-Lite 协议专项
 （背靠背流水写、背靠背流水读、未映射地址 ERROR、非 32 位访问 ERROR、
-忙时访问 Buffer ERROR），共 24 项用例，预期结果为 `PASS=24 FAIL=0`。
+忙时访问 Buffer ERROR），共 25 项用例，预期结果为 `PASS=25 FAIL=0`。
 
 `--simple` 模式只运行 G1 单 Tile，用于快速查看一次完整数据流；波形另存为 `sim/waves/npu_wave_simple.vcd`。
 
 ## 性能
 
-16×16×16（单任务最大规模，A/BT 各用满 64 字）实测 952 周期、阵列利用率 26%；
-8×8×32 为 336~360 周期、利用率 35%~38%。`TK` 取 2~16 的性能差别在 15% 以内。
+16×16×16（单任务最大规模，A/BT 各用满 64 字）实测 **698 周期、阵列利用率 37%**（v2.1 为 952 拍 / 27%）。
+16×16×16 的 693 拍里只有 256 拍在真正喂数，其余是等预取（144）、喂数空转（64）和每块 tile 的排空（128），
+这三块是下一步优化的目标。
 
 ## 绘图
 

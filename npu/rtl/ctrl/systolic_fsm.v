@@ -5,7 +5,7 @@
 //   S_IDLE       start_pulse 到来 -> S_INIT
 //   S_INIT       sched_init 复位 tile 计数器 -> S_CLEAR_ACC
 //   S_CLEAR_ACC  清 PE 累加器并启动第一个 K Tile 的预取；
-//                等 cwr_idle（上一块 C 已写完，快照不会被覆盖）-> S_PREFETCH
+//                等 snap_ready（有空闲快照 bank，本块结果有地方落）-> S_PREFETCH
 //   S_PREFETCH   等 A/BT FIFO 装满当前 K Tile -> S_FEED
 //   S_FEED       成对喂 valid_tk 拍；离开时启动下一个 K Tile 的预取；
 //                最后一个 K Tile -> S_DRAIN，否则 next_k_req -> S_PREFETCH
@@ -20,8 +20,10 @@
 //      不再是每个 K Tile 都要付一次的排空开销。
 //   2. 预取与喂数重叠：进入 S_FEED 时用 pf_next_start 启动下一个 K Tile 的突发，
 //      S_PREFETCH 只负责等数据到齐，通常可以立刻通过。
-//   3. 排空后结果由 c_tile_write_ctrl 锁存成快照并在后台写回，
-//      状态机不等写回就进入下一个输出 Tile；core_done 才代表全部 C 已落 RAM。
+//   3. 排空后结果由 c_tile_write_ctrl 锁存成快照并在后台写回。快照有双 bank，
+//      状态机只等"有空闲 bank"（snap_ready），不等扫描结束、也不等写 FIFO 排空，
+//      所以写回的 16 拍扫描能被下一块 tile 的计算遮住；core_done 才代表全部
+//      C 已真正落入 RAM，它仍然等 cwr_idle（扫描结束且写 FIFO 排空）。
 `include "npu_defines.vh"
 
 module systolic_fsm(
@@ -39,8 +41,9 @@ module systolic_fsm(
     input        pair_fire,
     // MAC 排空完成
     input        drain_done,
-    // C 写回空闲(扫描未进行且写 FIFO 已排空)
-    input        cwr_idle,
+    // 有空闲快照 bank：可以接受本块结果而不覆盖还没扫完的上一块。
+    // 注意这不是"写回已完成"，完成判定用 core_done。
+    input        snap_ready,
     // 输出
     output reg   sched_init,
     output reg   next_k_req,
@@ -117,9 +120,11 @@ module systolic_fsm(
 
                 // 每个输出 Tile 都从零开始累加；跨任务累加由 C 写回路径完成
                 // （见 c_write_fifo 的读-改-写），因此这里无条件清零。
+                // 等待条件只看"有空闲快照 bank"：上一块的扫描占用的是另一组 bank，
+                // 所以这里通常下一个周期就通过（旧实现等 cwr_idle，每块白等 15 拍）。
                 S_CLEAR_ACC: begin
                     acc_clear <= 1'b1;
-                    if (cwr_idle) begin
+                    if (snap_ready) begin
                         pf_start <= 1'b1;      // 启动当前 K Tile 的预取
                         state    <= S_PREFETCH;
                     end

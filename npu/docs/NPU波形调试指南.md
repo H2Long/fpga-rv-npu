@@ -24,7 +24,7 @@ python3 scripts/run_npu.py --simple
 gtkwave npu/sim/waves/npu_wave.vcd
 ```
 
-当前回归共 19 项用例，第一次阅读建议从 G1 开始：
+当前回归共 25 项用例，第一次阅读建议从 G1 开始：
 
 ```text
 G1：4x4x4 单输出 Tile、单 K Tile，最容易观察
@@ -32,9 +32,11 @@ G2：16x16x16，16 个输出 Tile × 4 个 K Tile（单任务最大规模）
 G3/G4：M/N/K 非整除，边界补零
 G5~G7：量化、K 非 TK 整数倍、多 K Tile + 量化
 G8：TK=1，每个 K Tile 只有 1 拍
+G10：16x16x1，Tile 周期最短，用于观察 C 写回快照 bank 的积压（snap_ready=0 的等待）
 G9：同一 GEMM 换 TK，用于验证"TK 不影响结果"
 GA：两段 K 累加，用于验证 accumulate
 GB1~GB4：非法配置，观察 ERROR 而不是 BUSY
+AH1~AH5：AHB-Lite 协议专项（背靠背流水读写、错误响应两拍）
 ```
 
 ## 2. RTL 层次结构
@@ -164,14 +166,17 @@ skew 输出 `u_npu_mac.a_sk` / `bt_sk` 及 `a_sk_v` / `bt_sk_v`。
 
 ### 3.6 结果快照与写回
 
-v2.1 不再有"串行扫出 16 拍"的阶段，排空完成的同一拍就整块快照：
+排空完成的同一拍整块快照；v2.3 起快照有**两组 bank**（`snap_q[0]`/`snap_q[1]`），
+一组在被扫描时另一组可以接受下一块结果：
 
 ```text
 tb_npu.dut.drain_done
 tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.snap_valid_in
 tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.active_q
 tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.idx_q        (0..15 扫描)
-tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.snap_q       (结果快照)
+tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.snap_q[0]    (快照 bank 0)
+tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.snap_q[1]    (快照 bank 1)
+tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.bank_busy_q  (bank 占用标志)
 tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.c_base_q     (快照对应的 C 基地址)
 tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.cwr_valid_out
 tb_npu.dut.u_tile_controller.u_c_tile_write_ctrl.idle_out
@@ -199,7 +204,7 @@ S_IDLE(0) -> S_INIT(1) -> S_CLEAR_ACC(2) -> S_PREFETCH(3) -> S_FEED(4)
 关键相位：
 
 ```text
-S_CLEAR_ACC : acc_clear=1（冲掉上一次的累加值和残留波前），等 cwr_idle 后发 pf_start
+S_CLEAR_ACC : acc_clear=1（冲掉上一次的累加值和残留波前），等 snap_ready 后发 pf_start
 S_PREFETCH  : array_enable=0，阵列整体冻结；FIFO count 涨到 valid_tk 后进入 FEED
 S_FEED      : array_enable=1，pair_fire 每拍弹出一对 A/BT；
               同一拍 pf_next_start 启动下一个 K Tile 的预取（最后一个 K Tile 不发）
@@ -322,7 +327,7 @@ start_pulse 有但状态机不动      -> systolic_fsm 的 start_pulse 连接
 一直停在 S_FEED                 -> pair_fire 不成立：某个 FIFO 空
 一直停在 S_DRAIN                -> drain_en/drain_done 或 drain_controller 计数
 一直停在 S_DONE                 -> core_done 不成立：wr_cnt 没到 M*N 或 cwr_idle=0
-卡在 S_CLEAR_ACC                -> cwr_idle=0：上一块的写回没排空
+卡在 S_CLEAR_ACC                -> snap_ready=0：两组快照 bank 都被占用（写回跟不上计算）
 C 结果全为 0                    -> acc_clear 是否被永久拉高（累加器每拍清零）
 C 结果写到了别的 tile 地址      -> 快照是否锁存了 c_base/valid_tm/valid_tn
 K 方向结果少了/多了             -> K Tile 之间是否被清累加器或清 feed_cnt 位置不对

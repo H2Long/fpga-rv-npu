@@ -12,7 +12,8 @@
 //   2. 预取与喂数重叠：喂第 k 个 K Tile 时用 pf_next_start 启动第 k+1 个的突发，
 //      预取延迟被喂数覆盖；FIFO 深度足够容纳两段，不会溢出丢弃。
 //   3. 结果不回阵列外累加：排空时把 16 个累加器整块快照给 c_tile_write_ctrl，
-//      写回在后台完成，状态机直接进入下一个 Tile。core_done 等所有 C 真正落 RAM。
+//      写回在后台完成，状态机直接进入下一个 Tile。快照是双 bank 的，状态机只等
+//      "有空闲 bank"（snap_ready）而不等写回排空；core_done 等所有 C 真正落 RAM。
 //
 // 数据布局：A/BT 按 K 主序，第 (tile_i*K + tile_k*TK + k) 个字装第
 // tile_i*4..tile_i*4+3 行（BT 为列）在第 k 步的 4 个 INT8。地址单位是 32 位字。
@@ -140,6 +141,7 @@ module tile_controller(
     // ---- 主状态机 ----
     wire fsm_acc_clear, fsm_drain_en, fsm_array_enable, fsm_core_busy;
     wire pf_start, pf_next_start, feed_go, fsm_done, cwr_idle;
+    wire snap_ready;      // 有空闲快照 bank（c_tile_write_ctrl 输出）
 
     systolic_fsm u_systolic_fsm(
         .clk(clk), .rst(rst),
@@ -151,7 +153,7 @@ module tile_controller(
         .a_fifo_count(a_fifo_count), .bt_fifo_count(bt_fifo_count),
         .pair_fire(pair_fire),
         .drain_done(drain_done),
-        .cwr_idle(cwr_idle),
+        .snap_ready(snap_ready),
         .sched_init(sched_init), .next_k_req(next_k_req), .next_out_req(next_out_req),
         .acc_clear(fsm_acc_clear),
         .pf_start(pf_start), .pf_next_start(pf_next_start),
@@ -191,7 +193,7 @@ module tile_controller(
         .qshift_in(lb_qs),
         .cwr_ready_in(cwr_ready), .cwr_empty_in(cwr_empty),
         .cwr_valid_out(cwr_valid_w), .cwr_addr_out(cwr_addr_w), .cwr_data_out(cwr_data_w),
-        .idle_out(cwr_idle)
+        .idle_out(cwr_idle), .snap_ready_out(snap_ready)
     );
 
     // ---- 完成计数：只有真正写进 C RAM 的笔数才算完成 ----

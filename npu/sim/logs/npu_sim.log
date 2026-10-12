@@ -1,31 +1,50 @@
 VCD info: dumpfile npu_wave.vcd opened for output.
 ==== NPU INT8 GEMM 回归开始 ====
-[G1����tile_4x4x4      ] PASS : M=4 N=4 K=4 TK=4 q=0 | C 16 项, 耗时 46 周期
-[������������_16x16x16   ] PASS : M=16 N=16 K=16 TK=4 q=0 | C 256 项, 耗时 952 周期
-[G3_������_6x7x9_TK3    ] PASS : M=6 N=7 K=9 TK=3 q=0 | C 42 项, 耗时 196 周期
-[G4_������_5x5x6_TK3    ] PASS : M=5 N=5 K=6 TK=3 q=0 | C 25 项, 耗时 172 周期
-[G5_������_8x8x8_q2     ] PASS : M=8 N=8 K=8 TK=8 q=2 | C 64 项, 耗时 192 周期
-[G6_K10_TK4_q3        ] PASS : M=8 N=8 K=10 TK=4 q=3 | C 64 项, 耗时 208 周期
-[G7_K16_TK4_q4        ] PASS : M=8 N=8 K=16 TK=4 q=4 | C 64 项, 耗时 244 周期
-[G8_K7_TK1            ] PASS : M=8 N=7 K=7 TK=1 q=0 | C 56 项, 耗时 230 周期
+TASK_BEGIN G1_tile_4x4x4           m=4 n=4 k=4 tk=4
+[G1_tile_4x4x4          ] PASS : M=4 N=4 K=4 TK=4 q=0 | C 16 项, 耗时 46 周期
+TASK_BEGIN G2_full_16x16x16        m=16 n=16 k=16 tk=4
+[G2_full_16x16x16       ] PASS : M=16 N=16 K=16 TK=4 q=0 | C 256 项, 耗时 698 周期
+TASK_BEGIN G3_edge_6x7x9_TK3       m=6 n=7 k=9 tk=3
+[G3_edge_6x7x9_TK3      ] PASS : M=6 N=7 K=9 TK=3 q=0 | C 42 项, 耗时 148 周期
+TASK_BEGIN G4_edge_5x5x6_TK3       m=5 n=5 k=6 tk=3
+[G4_edge_5x5x6_TK3      ] PASS : M=5 N=5 K=6 TK=3 q=0 | C 25 项, 耗时 124 周期
+TASK_BEGIN G5_quant_8x8x8_q2       m=8 n=8 k=8 tk=8
+[G5_quant_8x8x8_q2      ] PASS : M=8 N=8 K=8 TK=8 q=2 | C 64 项, 耗时 142 周期
+TASK_BEGIN G6_K10_TK4_q3         m=8 n=8 k=10 tk=4
+[G6_K10_TK4_q3        ] PASS : M=8 N=8 K=10 TK=4 q=3 | C 64 项, 耗时 158 周期
+TASK_BEGIN G7_K16_TK4_q4         m=8 n=8 k=16 tk=4
+[G7_K16_TK4_q4        ] PASS : M=8 N=8 K=16 TK=4 q=4 | C 64 项, 耗时 194 周期
+TASK_BEGIN G8_K7_TK1             m=8 n=7 k=7 tk=1
+[G8_K7_TK1            ] PASS : M=8 N=7 K=7 TK=1 q=0 | C 56 项, 耗时 180 周期
+TASK_BEGIN G10_wr_pressure_16x16x1 m=16 n=16 k=1 tk=1
+[G10_wr_pressure_16x16x1] PASS : M=16 N=16 K=1 TK=1 q=0 | C 256 项, 耗时 296 周期
 ---- G9 TK 不变性（同一 GEMM，TK=1/2/4/8/16 结果必须一致）----
-[G9_T����������          ] PASS : M=8 N=8 K=16 TK=1 q=0 | C 64 项, 耗时 376 周期
-[G9_T����������          ] PASS : M=8 N=8 K=16 TK=2 q=0 | C 64 项, 耗时 284 周期
-[G9_T����������          ] PASS : M=8 N=8 K=16 TK=4 q=0 | C 64 项, 耗时 244 周期
-[G9_T����������          ] PASS : M=8 N=8 K=16 TK=8 q=0 | C 64 项, 耗时 236 周期
-[G9_T����������          ] PASS : M=8 N=8 K=16 TK=16 q=0 | C 64 项, 耗时 256 周期
-[GA����������������_K8x2   ] PASS : 两段 K=8 累加 == 单次 K=16
-[GB1_���A������          ] PASS : 非法配置被拒绝 STATUS=0x00000018 (ERROR=1 BUSY=0)
-[GB2_���C������          ] PASS : 非法配置被拒绝 STATUS=0x00000018 (ERROR=1 BUSY=0)
-[GB3_�����������         ] PASS : 非法配置被拒绝 STATUS=0x00000018 (ERROR=1 BUSY=0)
-[GB4��������            ] PASS : 非法配置被拒绝 STATUS=0x00000018 (ERROR=1 BUSY=0)
+TASK_BEGIN G9_TK_scan              m=8 n=8 k=16 tk=1
+[G9_TK_scan             ] PASS : M=8 N=8 K=16 TK=1 q=0 | C 64 项, 耗时 326 周期
+TASK_BEGIN G9_TK_scan              m=8 n=8 k=16 tk=2
+[G9_TK_scan             ] PASS : M=8 N=8 K=16 TK=2 q=0 | C 64 项, 耗时 234 周期
+TASK_BEGIN G9_TK_scan              m=8 n=8 k=16 tk=4
+[G9_TK_scan             ] PASS : M=8 N=8 K=16 TK=4 q=0 | C 64 项, 耗时 194 周期
+TASK_BEGIN G9_TK_scan              m=8 n=8 k=16 tk=8
+[G9_TK_scan             ] PASS : M=8 N=8 K=16 TK=8 q=0 | C 64 项, 耗时 186 周期
+TASK_BEGIN G9_TK_scan              m=8 n=8 k=16 tk=16
+[G9_TK_scan             ] PASS : M=8 N=8 K=16 TK=16 q=0 | C 64 项, 耗时 206 周期
+TASK_BEGIN GA_accum_K8x2           m=8 n=8 k=8 tk=8
+TASK_BEGIN GA_accum_K8x2           m=8 n=8 k=8 tk=8
+[GA_accum_K8x2          ] PASS : 两段 K=8 累加 == 单次 K=16
+[GB1_over_A_cap         ] PASS : 非法配置被拒绝 STATUS=0x00000018 (ERROR=1 BUSY=0)
+[GB2_over_C_cap         ] PASS : 非法配置被拒绝 STATUS=0x00000018 (ERROR=1 BUSY=0)
+[GB3_TK_range           ] PASS : 非法配置被拒绝 STATUS=0x00000018 (ERROR=1 BUSY=0)
+[GB4_K_zero             ] PASS : 非法配置被拒绝 STATUS=0x00000018 (ERROR=1 BUSY=0)
 ---- AH AHB-Lite 协议专项（背靠背流水 / 错误响应）----
-[AH1_背靠背流水写      ] PASS : 16 字全部写入并读回正确, 无等待态
-[AH5_背靠背流水读      ] PASS : 16 字流水读回与写入图案逐字一致
-[AH2_未映射地址ERROR   ] PASS : HRESP=ERROR, 两拍结构 (lo=1 hi=1)
-[AH3_非32位访问ERROR   ] PASS : HSIZE=000 被拒绝, 两拍结构正确
-[AH4_忙时访问Buffer    ] PASS : BUSY 期间 Buffer 访问回 ERROR, BUFFER_READY=0
-[������������������������    ] PASS : M=4 N=4 K=4 TK=4 q=0 | C 16 项, 耗时 46 周期
-==== 结果: PASS=24 FAIL=0 ====
+[AH1_pipe_wr            ] PASS : 16 字全部写入并读回正确, 无等待态
+[AH5_pipe_rd            ] PASS : 16 字流水读回与写入图案逐字一致
+[AH2_unmapped_err       ] PASS : HRESP=ERROR, 两拍结构 (lo=1 hi=1)
+[AH3_bad_size_err       ] PASS : HSIZE=000 被拒绝, 两拍结构正确
+TASK_BEGIN AH4_busy_buf_err       m=16 n=16 k=16 tk=4
+[AH4_busy_buf_err       ] PASS : BUSY 期间 Buffer 访问回 ERROR, BUFFER_READY=0
+TASK_BEGIN GC_recover              m=4 n=4 k=4 tk=4
+[GC_recover             ] PASS : M=4 N=4 K=4 TK=4 q=0 | C 16 项, 耗时 46 周期
+==== 结果: PASS=25 FAIL=0 ====
 ALL TESTS PASSED
-/home/hhlong/code/fpga-calss-design/npu/tb/tb_npu.v:603: $finish called at 102960000 (1ps)
+/home/hhlong/code/fpga-calss-design/npu/tb/tb_npu.v:617: $finish called at 101960000 (1ps)

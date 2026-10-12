@@ -12,6 +12,8 @@
 //   G6  8x8x10 TK=4 q3   K 不是 TK 整数倍 且 qshift>0（K 累加与量化组合）
 //   G7  8x8x16 TK=4 q4   多个 K Tile 且 qshift>0
 //   G8  8x8x7  TK=1      最小 K Tile（每个 K Tile 只有 1 拍）
+//   G10 16x16x1 TK=1   写回压力：16 个输出 Tile、每块只喂 1 拍，Tile 周期最短，
+//                      专门压 C 写回快照 bank 的积压路径
 //   G9  16x16x16 TK=1/4/8/16   同一 GEMM 换 TK，结果必须逐位一致
 //   GA  8x8x16 拆成两段 K=8 累加    accumulate 位（跨任务累加）
 //   GB  非法配置     超出 Buffer 容量的配置必须置 ERROR，不得进入 BUSY
@@ -321,6 +323,8 @@ module tb_npu;
                        input integer m, n, k, tk, qs, seed);
         begin
             m_r = m; n_r = n; k_r = k;
+            // 机器可读的任务标记：scripts/cycle_ledger.py 用它把周期账本按顺序对上用例名
+            $display("TASK_BEGIN %0s m=%0d n=%0d k=%0d tk=%0d", name, m, n, k, tk);
             gen_data(m, n, k, seed);
             calc_golden(m, n, k, qs);
 
@@ -364,6 +368,7 @@ module tb_npu;
             calc_golden(m, n, k_half * 2, 0);      // 期望：完整 K 累加，不量化
 
             // ---- 第一段 K ----
+            $display("TASK_BEGIN %0s m=%0d n=%0d k=%0d tk=%0d", name, m, n, k_half, k_half);
             cpu_wr(A_CTRL, 32'h2);
             load_ab(0, 0, k_half);
             load_ab(1, 0, k_half);
@@ -376,6 +381,7 @@ module tb_npu;
             end
             else begin
                 // ---- 第二段 K：accumulate=1 ----
+                $display("TASK_BEGIN %0s m=%0d n=%0d k=%0d tk=%0d", name, m, n, k_half, k_half);
                 load_ab(0, k_half, k_half);
                 load_ab(1, k_half, k_half);
                 cpu_wr(A_M, m); cpu_wr(A_N, n); cpu_wr(A_K, k_half);
@@ -449,11 +455,11 @@ module tb_npu;
             ok = (rd_errs == 0) && (ahb_stall == 0) && (ahb_err == 0);
             if (ok) begin
                 num_pass = num_pass + 1;
-                $display("[AH1_背靠背流水写      ] PASS : 16 字全部写入并读回正确, 无等待态");
+                $display("[AH1_pipe_wr            ] PASS : 16 字全部写入并读回正确, 无等待态");
             end
             else begin
                 num_fail = num_fail + 1;
-                $display("[AH1_背靠背流水写      ] FAIL : 回读错 %0d 处, 等待态 %0d 次, 意外 ERROR %0d 次",
+                $display("[AH1_pipe_wr            ] FAIL : 回读错 %0d 处, 等待态 %0d 次, 意外 ERROR %0d 次",
                          rd_errs, ahb_stall, ahb_err);
             end
         end
@@ -465,11 +471,11 @@ module tb_npu;
             ahb_probe(A_UNMAP, 1'b0, 32'd0, 3'b010, resp, lo, hi);
             if ((resp == HRESP_ERROR) && (lo == 1) && (hi == 1)) begin
                 num_pass = num_pass + 1;
-                $display("[AH2_未映射地址ERROR   ] PASS : HRESP=ERROR, 两拍结构 (lo=%0d hi=%0d)", lo, hi);
+                $display("[AH2_unmapped_err       ] PASS : HRESP=ERROR, 两拍结构 (lo=%0d hi=%0d)", lo, hi);
             end
             else begin
                 num_fail = num_fail + 1;
-                $display("[AH2_未映射地址ERROR   ] FAIL : HRESP=%b, 两拍结构 lo=%0d hi=%0d (期望 1/1)",
+                $display("[AH2_unmapped_err       ] FAIL : HRESP=%b, 两拍结构 lo=%0d hi=%0d (期望 1/1)",
                          resp, lo, hi);
             end
         end
@@ -481,11 +487,11 @@ module tb_npu;
             ahb_probe(A_M, 1'b1, 32'd4, 3'b000, resp, lo, hi);
             if ((resp == HRESP_ERROR) && (lo == 1) && (hi == 1)) begin
                 num_pass = num_pass + 1;
-                $display("[AH3_非32位访问ERROR   ] PASS : HSIZE=000 被拒绝, 两拍结构正确");
+                $display("[AH3_bad_size_err       ] PASS : HSIZE=000 被拒绝, 两拍结构正确");
             end
             else begin
                 num_fail = num_fail + 1;
-                $display("[AH3_非32位访问ERROR   ] FAIL : HRESP=%b lo=%0d hi=%0d", resp, lo, hi);
+                $display("[AH3_bad_size_err       ] FAIL : HRESP=%b lo=%0d hi=%0d", resp, lo, hi);
             end
         end
     endtask
@@ -494,6 +500,7 @@ module tb_npu;
     task ahb_test_busy_buf;
         begin
             // 用 16x16x16 起一个长时间任务，先等 BUSY=1
+            $display("TASK_BEGIN AH4_busy_buf_err       m=16 n=16 k=16 tk=4");
             m_r = 16; n_r = 16;
             gen_data(16, 16, 16, 32'hD1);
             cpu_wr(A_CTRL, 32'h2);
@@ -513,11 +520,11 @@ module tb_npu;
             ok = ok && (resp == HRESP_ERROR) && (lo == 1) && (hi == 1);
             if (ok) begin
                 num_pass = num_pass + 1;
-                $display("[AH4_忙时访问Buffer    ] PASS : BUSY 期间 Buffer 访问回 ERROR, BUFFER_READY=0");
+                $display("[AH4_busy_buf_err       ] PASS : BUSY 期间 Buffer 访问回 ERROR, BUFFER_READY=0");
             end
             else begin
                 num_fail = num_fail + 1;
-                $display("[AH4_忙时访问Buffer    ] FAIL : STATUS=0x%08h HRESP=%b lo=%0d hi=%0d",
+                $display("[AH4_busy_buf_err       ] FAIL : STATUS=0x%08h HRESP=%b lo=%0d hi=%0d",
                          status, resp, lo, hi);
             end
             // 等任务自然结束，保持 DUT 状态干净
@@ -541,11 +548,11 @@ module tb_npu;
                 if (rbuf[i] !== pbuf[i][31:0]) rd_errs = rd_errs + 1;
             if (rd_errs == 0) begin
                 num_pass = num_pass + 1;
-                $display("[AH5_背靠背流水读      ] PASS : 16 字流水读回与写入图案逐字一致");
+                $display("[AH5_pipe_rd            ] PASS : 16 字流水读回与写入图案逐字一致");
             end
             else begin
                 num_fail = num_fail + 1;
-                $display("[AH5_背靠背流水读      ] FAIL : %0d/16 处读回错误", rd_errs);
+                $display("[AH5_pipe_rd            ] FAIL : %0d/16 处读回错误", rd_errs);
             end
         end
     endtask
@@ -561,32 +568,34 @@ module tb_npu;
 
         if ($test$plusargs("ONLY_T1")) begin
             $display("==== NPU 简单单 Tile 仿真开始 ====");
-            run_gemm_test("G1_单tile_4x4x4      ", 4, 4, 4, 4, 0, 32'h1);
+            run_gemm_test("G1_tile_4x4x4          ", 4, 4, 4, 4, 0, 32'h1);
         end
         else begin
             $display("==== NPU INT8 GEMM 回归开始 ====");
-            run_gemm_test("G1_单tile_4x4x4      ", 4,  4,  4, 4, 0, 32'h1);
-            run_gemm_test("G2_满规模_16x16x16   ", 16, 16, 16, 4, 0, 32'h2);
-            run_gemm_test("G3_边界_6x7x9_TK3    ", 6,  7,  9, 3, 0, 32'h3);
-            run_gemm_test("G4_边界_5x5x6_TK3    ", 5,  5,  6, 3, 0, 32'h4);
-            run_gemm_test("G5_量化_8x8x8_q2     ", 8,  8,  8, 8, 2, 32'h5);
+            run_gemm_test("G1_tile_4x4x4          ", 4,  4,  4, 4, 0, 32'h1);
+            run_gemm_test("G2_full_16x16x16       ", 16, 16, 16, 4, 0, 32'h2);
+            run_gemm_test("G3_edge_6x7x9_TK3      ", 6,  7,  9, 3, 0, 32'h3);
+            run_gemm_test("G4_edge_5x5x6_TK3      ", 5,  5,  6, 3, 0, 32'h4);
+            run_gemm_test("G5_quant_8x8x8_q2      ", 8,  8,  8, 8, 2, 32'h5);
             run_gemm_test("G6_K10_TK4_q3        ", 8,  8, 10, 4, 3, 32'h6);
             run_gemm_test("G7_K16_TK4_q4        ", 8,  8, 16, 4, 4, 32'h7);
             run_gemm_test("G8_K7_TK1            ", 8,  7,  7, 1, 0, 32'h8);
+            // G10：写回压力用例——16 个输出 Tile、每块只喂 1 拍，Tile 周期最短
+            run_gemm_test("G10_wr_pressure_16x16x1", 16, 16, 1, 1, 0, 32'hC3);
 
             // G9：同一个 GEMM 换 TK 必须得到逐位相同的结果（验证累加器跨 K-tile 保留）
             $display("---- G9 TK 不变性（同一 GEMM，TK=1/2/4/8/16 结果必须一致）----");
             for (tk_scan = 1; tk_scan <= 16; tk_scan = tk_scan * 2)
-                run_gemm_test("G9_TK不变性          ", 8, 8, 16, tk_scan, 0, 32'h9);
+                run_gemm_test("G9_TK_scan             ", 8, 8, 16, tk_scan, 0, 32'h9);
 
             // GA：跨任务累加
-            run_accum_test("GA_跨任务累加_K8x2   ", 8, 8, 8, 32'hA);
+            run_accum_test("GA_accum_K8x2          ", 8, 8, 8, 32'hA);
 
             // GB：非法配置
-            run_bad_config("GB1_超A容量          ", 63, 4, 63, 16);
-            run_bad_config("GB2_超C容量          ", 32, 32, 1, 1);
-            run_bad_config("GB3_TK超范围         ", 4, 4, 4, 31);
-            run_bad_config("GB4_K为零            ", 4, 4, 0, 4);
+            run_bad_config("GB1_over_A_cap         ", 63, 4, 63, 16);
+            run_bad_config("GB2_over_C_cap         ", 32, 32, 1, 1);
+            run_bad_config("GB3_TK_range           ", 4, 4, 4, 31);
+            run_bad_config("GB4_K_zero             ", 4, 4, 0, 4);
 
             // AH：AHB-Lite 协议专项
             $display("---- AH AHB-Lite 协议专项（背靠背流水 / 错误响应）----");
@@ -597,7 +606,7 @@ module tb_npu;
             ahb_test_busy_buf;
 
             // 非法配置之后必须能正常恢复
-            run_gemm_test("GC_非法配置后恢复    ", 4, 4, 4, 4, 0, 32'hB);
+            run_gemm_test("GC_recover             ", 4, 4, 4, 4, 0, 32'hB);
         end
 
         $display("==== 结果: PASS=%0d FAIL=%0d ====", num_pass, num_fail);
