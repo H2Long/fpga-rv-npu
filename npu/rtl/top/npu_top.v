@@ -1,10 +1,16 @@
 `timescale 1ns / 1ps
 // npu_top — CPU 控制平面
 //
-// 本模块把 CPU 的 MMIO 总线拆成三个方向：
+// 本模块把上游（ahb_lite_slave）给出的原生请求拆成三个方向：
 //   1. 控制寄存器：保存 M/N/K、TK、量化参数和 accumulate；TM/TN 固定为 4；
 //   2. 状态寄存器：返回 BUSY、DONE、BUFFER_READY 和 ERROR；
 //   3. Buffer 端口：把 0x1000/0x2000/0x3000 地址窗口转换成 RAM 操作。
+// 地址译码结果（sel_*）和读数据（control_rdata/status_rdata/buffer_rdata）
+// 回送给 ahb_lite_slave，由它组织 AHB 的数据阶段和错误响应。
+//
+// 请求接口（req_addr/req_wdata/req_byte_en/req_we/req_valid）与已删除的
+// mmio_if 输出定义完全一致：req_valid 是数据阶段单拍脉冲，req_addr 与它同拍
+// 有效；寄存器读数据同拍组合有效，Buffer 读数据在下一拍返回（见 npu_ram）。
 //
 // 状态寄存器 0x20 的位定义：
 //   bit0 BUSY          正在执行任务
@@ -16,20 +22,27 @@
 //
 // start_ctrl 在 start_req 到来时先校验配置、再锁存参数并产生 start_pulse；
 // 配置非法时进入 ERROR 而不是 BUSY，运行期间软件再写配置寄存器不生效。
-// 内含模块：mmio_if / control_regs / start_ctrl / buffer_access_ctrl
+// 内含模块：control_regs / start_ctrl / buffer_access_ctrl
 `include "npu_defines.vh"
 
 module npu_top(
     input        clk,
     input        rst,
-    // CPU MMIO 总线
-    input [31:0] cpu_addr,
-    input [31:0] cpu_wdata,
-    input [3:0]  cpu_byte_en,
-    input        cpu_we,
-    input        cpu_valid,
-    output reg [31:0] cpu_rdata,
-    output reg        cpu_ready,
+    // 来自 ahb_lite_slave 的原生请求（req_valid 在数据阶段单拍有效）
+    input [31:0] req_addr,
+    input [31:0] req_wdata,
+    input [3:0]  req_byte_en,
+    input        req_we,
+    input        req_valid,
+    // 地址译码结果与读数据回给 ahb_lite_slave
+    output reg        sel_ctrl,
+    output reg        sel_status,
+    output reg        sel_a_buf,
+    output reg        sel_bt_buf,
+    output reg        sel_c_buf,
+    output reg [31:0] status_rdata,
+    output reg [31:0] buffer_rdata,
+    output     [31:0] control_rdata,   // 由 control_regs 驱动，故为 wire 而非 reg
     // 到 tile_controller（启动脉冲 + 锁存后的任务参数）
     output reg        start_pulse,
     output reg [`NPU_DIM_W-1:0]  cfg_m, cfg_n, cfg_k,
@@ -50,20 +63,13 @@ module npu_top(
     input [31:0] a_rdata_cpu, bt_rdata_cpu, c_rdata_cpu
 );
 
-    // ---- 内部连线：MMIO 锁存请求 ----
-    wire [31:0] req_addr, req_wdata;
-    wire [3:0]  req_byte_en;
-    wire        req_we, req_valid;
-    // 地址译码结果与状态读数据都在 always @(*) 中赋值，因此声明为 reg
-    reg         sel_ctrl, sel_status;
-    reg         sel_a_buf, sel_bt_buf, sel_c_buf;
+    // ---- 内部连线：译码出的本地字地址 ----
     reg [`NPU_ABUF_AW-1:0] a_local_addr;
     reg [`NPU_BBUF_AW-1:0] bt_local_addr;
     reg [`NPU_CBUF_AW-1:0] c_local_addr;
     reg [2:0]  ctrl_reg_off;
 
-    wire [31:0] control_rdata, buffer_rdata_w;
-    reg [31:0] status_rdata;
+    wire [31:0] buffer_rdata_w;
 
     // start_ctrl 的锁存参数：任务开始后由 m_l..qs_l 保持到任务结束。
     wire [`NPU_DIM_W-1:0]  m_l, n_l, k_l;
@@ -74,8 +80,6 @@ module npu_top(
     wire        start_req, clear_done_req;
 
     // buffer_access_ctrl 直接输出经过字节屏蔽的 RAM 端口。
-    wire [31:0] cpu_rdata_w;
-    wire        cpu_ready_w;
     wire        start_pulse_w;
     wire        cpu_a_we_w, cpu_a_re_w, cpu_bt_we_w, cpu_bt_re_w;
     wire        cpu_c_we_w, cpu_c_re_w;
@@ -84,21 +88,7 @@ module npu_top(
     wire [`NPU_CBUF_AW-1:0] cpu_c_addr_w;
     wire [31:0] cpu_a_wdata_w, cpu_bt_wdata_w, cpu_c_wdata_w;
 
-    // ---- mmio_if ----
-    mmio_if u_mmio_if(
-        .clk(clk), .rst(rst),
-        .cpu_valid(cpu_valid), .cpu_we(cpu_we),
-        .cpu_addr(cpu_addr), .cpu_wdata(cpu_wdata), .cpu_byte_en(cpu_byte_en),
-        .cpu_ready(cpu_ready_w), .cpu_rdata(cpu_rdata_w),
-        .req_addr(req_addr), .req_wdata(req_wdata),
-        .req_byte_en(req_byte_en), .req_we(req_we), .req_valid(req_valid),
-        .sel_ctrl(sel_ctrl), .sel_status(sel_status),
-        .sel_a_buf(sel_a_buf), .sel_bt_buf(sel_bt_buf), .sel_c_buf(sel_c_buf),
-        .control_rdata(control_rdata), .status_rdata(status_rdata),
-        .buffer_rdata(buffer_rdata_w)
-    );
-
-    // ---- MMIO 地址译码：req_addr 已由 mmio_if 锁存 ----
+    // ---- MMIO 地址译码：req_addr 由 ahb_lite_slave 在数据阶段给出 ----
     always @(*) begin
         sel_ctrl    = (req_addr[31:5] == 27'd0);            // 0x0000-0x001F
         sel_status  = (req_addr[31:4] == 28'h0000002);      // 0x0020-0x002F
@@ -166,8 +156,7 @@ module npu_top(
     );
 
     always @(*) begin
-        cpu_rdata       = cpu_rdata_w;
-        cpu_ready       = cpu_ready_w;
+        buffer_rdata    = buffer_rdata_w;
         start_pulse     = start_pulse_w;
         // 对 tile_controller 输出锁存后的任务参数：运行期间软件改动不影响当前任务。
         cfg_m           = m_l;

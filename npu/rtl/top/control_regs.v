@@ -35,7 +35,7 @@ module control_regs(
     output reg [31:0] control_rdata
 );
 
-    // req_valid 只在 mmio_if 发布一笔已锁存的请求时有效一个周期。
+    // req_valid 只在 ahb_lite_slave 发布一笔已锁存的请求时有效一个周期。
     // 配置寄存器均位于一个 32 位字的低字节，只接受 byte_en[0] 有效的写入，
     // 这样字节写和整字写行为一致，也不会误改高位保留字段。
     wire wr       = req_valid && sel_ctrl && req_we;

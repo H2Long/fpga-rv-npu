@@ -47,7 +47,13 @@
 `define NPU_TK_MAX 16                  // TK 合法上界
 `define NPU_TM_TN 4                    // TM=TN=4 固定
 
-// ---- MMIO 地址映射(npu_top 内联译码使用) ----
+// ---- AHB-Lite 从机基址 ----
+// NPU 对外只有 AHB-Lite 一条总线：HADDR 减去 NPU_ADDR_BASE 之后才是下面
+// NPU_ADDR_* 定义的内部字地址（所以那些宏都是"偏移"，不是绝对地址）。
+// 默认 0x4000_0000：0x0000_0000 是 Cortex-M 的向量表/启动别名区，不能占用。
+`define NPU_ADDR_BASE 32'h4000_0000
+
+// ---- MMIO 地址映射(npu_top 内联译码使用，均为相对基址的偏移) ----
 `define NPU_ADDR_CTRL_BASE 32'h0000_0000  // 0x0000-0x001F 控制寄存器
 `define NPU_ADDR_STAT_BASE 32'h0000_0020  // 0x0020-0x002F 状态寄存器
 `define NPU_ADDR_ABUF_BASE 32'h0000_1000  // 0x1000-0x10FF A Buffer

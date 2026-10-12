@@ -96,7 +96,7 @@ series = {
     "cwr_valid":       sig(S + ".u_tile_controller", "cwr_valid"),
     "c_wr_pulse":      sig(S + ".u_npu_buffer.u_c_write_fifo", "c_wr_pulse"),
     "core_done":       sig(S + ".u_tile_controller", "core_done"),
-    "cpu_valid":       sig(S, "cpu_valid"),
+    "req_valid":       sig(S, "req_valid"),   # AHB 从机发出的内部访问脉冲（旧 cpu_valid 的替代）
 }
 
 # ---------------- 时间窗:T1 的 start_pulse 到 core_done ----------------
@@ -151,7 +151,7 @@ STATE_NAMES = ["IDLE", "INIT", "CLEAR_ACC", "PREFETCH", "FEED", "DRAIN", "DONE"]
 
 # ---------------- 绘制 ----------------
 rows = [
-    ("cpu_valid (MMIO 活动)", "cpu_valid", "bit"),
+    ("req_valid (AHB 总线访问)", "req_valid", "bit"),
     ("start_pulse", "start_pulse", "bit"),
     ("core_busy", "core_busy", "bit"),
     ("systolic_fsm.state", "fsm_state", "state"),

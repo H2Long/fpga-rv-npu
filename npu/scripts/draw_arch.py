@@ -90,7 +90,7 @@ box(3.2, 6.4, 6.5, 4.6, "CPU", "RISC-V 核", "#57606A", fs=11, mono=False)
 
 # ---------- npu_top 模块 ----------
 BW, BH = 12.5, 4.6
-box(13,   6.4, BW, BH, "mmio_if",           "MMIO 总线入口", C_TOP_BD)
+box(13,   6.4, BW, BH, "ahb_lite_slave",    "AHB-Lite 总线入口", C_TOP_BD)
 box(28.5, 6.4, BW, BH, "npu_top.decode",     "地址译码", C_TOP_BD, fs=8.0)
 box(44,   6.4, BW, BH, "control_regs",      "配置寄存器", C_TOP_BD)
 box(59.5, 6.4, BW, BH, "start_ctrl",      "生命周期+配置校验", C_TOP_BD, fs=7.4)
@@ -153,7 +153,7 @@ box(79.5, 68.6, 13.5, BH, "c_tile_write_ctrl", "扫描 16 lane", C_CTRL_BD, fs=6
 box(79.5, 61.6, 13.5, BH, "drain_done",    "排空完成+快照", C_MAC_BD, fs=6.6)
 
 # ================= 连线(按接线总表 §7) =================
-# --- CPU <-> mmio_if ---
+# --- CPU <-> ahb_lite_slave ---
 wire([(9.7, 8.7), (13.0, 8.7)], C_CTRL, lw=1.9)
 wlabel(11.3, 7.6, "MMIO", C_CTRL)
 wire([(13.0, 10.3), (13.0, 12.3), (9.7, 12.3), (9.7, 9.35)], C_STAT)
@@ -166,7 +166,7 @@ wire([(34.7, 11.0), (34.7, 14.2)], C_CTRL)
 wire([(56.5, 8.7), (59.5, 8.7)], C_CTRL)
 wire([(65.7, 11.0), (65.7, 14.2)], C_CTRL)
 wire([(50.2, 16.5), (50.2, 19.2)], C_STAT, arrow=False)
-wlabel(53.2, 20.0, "寄存器/Buffer 读数据 → mmio_if", C_STAT, fs=6.6, ha="left")
+wlabel(53.2, 20.0, "寄存器/Buffer 读数据 → ahb_lite_slave", C_STAT, fs=6.6, ha="left")
 wire([(71.0, 16.5), (71.0, 19.6), (97.6, 19.6), (97.6, 27.8), (95.5, 27.8)], C_CTRL)
 wlabel(85.0, 18.8, "CPU RAM 端口(core_busy=0 时放行)", C_CTRL, fs=6.8)
 # --- start_ctrl -> tile_controller ---

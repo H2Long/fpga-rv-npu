@@ -2,14 +2,15 @@
 // buffer_access_ctrl — CPU Buffer 访问仲裁与读数据复用
 //
 // core_busy=0 时 CPU 拥有 A/BT/C 的访问端口；core_busy=1 时 NPU 正在使用
-// Buffer，所有 CPU 读写使能都被屏蔽。注意：本模块屏蔽的是 RAM 端口，
-// mmio_if 仍会按正常 MMIO 时序给出 cpu_ready；同时完成 CPU 写数据的
-// 字节屏蔽，直接输出三组 RAM 端口。
+// Buffer，所有 CPU 读写使能都被屏蔽。注意：本模块屏蔽的是 RAM 端口，属于
+// 最后一道防线；对外的错误应答由 ahb_lite_slave 负责（core_busy=1 时访问
+// Buffer 会回 HRESP=ERROR，而不是像旧 mmio_if 那样静默丢弃却应答成功）。
+// 同时完成 CPU 写数据的字节屏蔽，直接输出三组 RAM 端口。
 // 三块 RAM 的 CPU 读数据通过 sel_a_buf/sel_bt_buf/sel_c_buf 复用为 buffer_rdata。
 `include "npu_defines.vh"
 
 module buffer_access_ctrl(
-    // 来自 npu_top 内联译码的 CPU 请求(地址已由 mmio_if 锁存)
+    // 来自 npu_top 内联译码的 CPU 请求(地址已由 ahb_lite_slave 锁存)
     input        req_valid,
     input        req_we,
     input [3:0]  req_byte_en,
@@ -60,7 +61,7 @@ module buffer_access_ctrl(
         cpu_bt_wdata = req_wdata & byte_mask;
         cpu_c_wdata  = req_wdata & byte_mask;
 
-        // req_addr 已经被 mmio_if 锁存，所以 sel_* 在整个 Buffer 读等待期间保持稳定。
+        // req_addr 由 ahb_lite_slave 锁存，所以 sel_* 在整个 Buffer 读等待期间保持稳定。
         buffer_rdata = sel_a_buf  ? a_rdata_cpu  :
                        sel_bt_buf ? bt_rdata_cpu : c_rdata_cpu;
     end

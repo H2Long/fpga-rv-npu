@@ -158,8 +158,9 @@ RTL 按 Verilog-2001（`iverilog -g2001`）编译，与 `scripts/run_npu.py` 的
 
 1. **地址译码特征位错位**：0x1000/0x2000/0x3000 的区分位在 `addr[15:12]`，初版误用低位，
    导致 Buffer 读写目标错乱。
-2. **CPU 请求重复接收**：总线模型在 `cpu_ready` 后多保持一拍 `cpu_valid`，`mmio_if` 在 IDLE
-   态会重复锁存。约定：**采样到 ready 的同一拍撤下 valid**。
+2. **CPU 请求重复接收**：早期私有总线模型在 `cpu_ready` 后多保持一拍 `cpu_valid`，
+   MMIO 接口在 IDLE 态会重复锁存；约定"采样到 ready 的同一拍撤下 valid"。v2.2 换成
+   AHB-Lite 后由地址阶段/数据阶段天然隔离，同一问题以 `req_valid` 单拍脉冲的形式保留。
 3. **级联适配层丢写数据**：历史版本中 CPU Buffer 写数据经过多层包装，出现字节屏蔽数据未送到
    RAM；当前由 `buffer_access_ctrl` 一次完成仲裁和字节屏蔽。
 4. **K Tile 间 `feed_cnt` 未清零**：残留计数值使第二个及以后的 K Tile 只喂 1 对数据就误判完成。
@@ -185,13 +186,13 @@ RTL 按 Verilog-2001（`iverilog -g2001`）编译，与 `scripts/run_npu.py` 的
 
 ## 10. 全部 RTL 模块清单（20 个 .v）
 
-### 10.1 系统与 CPU 控制平面
+### 10.1 系统、总线与 CPU 控制平面
 
 | 模块 | 文件 | 责任 |
 |---|---|---|
-| `npu_system` | `top/npu_system.v` | 连接四个平面，提供 CPU MMIO 顶层端口 |
-| `npu_top` | `top/npu_top.v` | MMIO 译码、状态读回、控制平面总封装 |
-| `mmio_if` | `top/mmio_if.v` | 锁存请求、复用读响应、产生 `cpu_ready` |
+| `npu_system` | `top/npu_system.v` | 连接四个平面，提供 AHB-Lite 顶层端口 |
+| `ahb_lite_slave` | `bus/ahb_lite_slave.v` | AHB-Lite 协议从机：地址流水、等待态、两拍 ERROR 响应 |
+| `npu_top` | `top/npu_top.v` | 地址译码、状态读回、控制平面总封装 |
 | `control_regs` | `top/control_regs.v` | M/N/K、TK、qshift、accumulate 和命令寄存器 |
 | `start_ctrl` | `top/start_ctrl.v` | 任务生命周期、启动前配置校验、参数锁存 |
 | `buffer_access_ctrl` | `top/buffer_access_ctrl.v` | CPU/NPU 仲裁、字节屏蔽和 RAM 端口 |
@@ -227,12 +228,20 @@ RTL 按 Verilog-2001（`iverilog -g2001`）编译，与 `scripts/run_npu.py` 的
 
 ## 11. 顶层端口与内部接口
 
-### 11.1 `npu_system` CPU 端口
+### 11.1 `npu_system` AHB-Lite 从机端口
 
 ```text
-clk, rst
-cpu_addr[31:0], cpu_wdata[31:0], cpu_byte_en[3:0]
-cpu_we, cpu_valid, cpu_rdata[31:0], cpu_ready
+HCLK, HRESETn(低有效), HSEL
+HADDR[31:0], HTRANS[1:0], HWRITE, HSIZE[2:0], HWDATA[31:0], HREADY
+HRDATA[31:0], HREADYOUT, HRESP[1:0]
+```
+
+内部（`ahb_lite_slave` <-> `npu_top`）原生请求接口，`req_valid` 单拍有效：
+
+```text
+req_addr[31:0], req_wdata[31:0], req_byte_en[3:0], req_we, req_valid
+sel_ctrl/sel_status/sel_a_buf/sel_bt_buf/sel_c_buf
+control_rdata[31:0], status_rdata[31:0], buffer_rdata[31:0]
 ```
 
 ### 11.2 `npu_top <-> tile_controller`
@@ -321,7 +330,9 @@ C 一个 32 位字保存一个结果元素；A/BT 使用 K 主序，C 使用行�
 | `ACC_CFG.accumulate` | 在 C 写回路径做读-改-写 | 支持把 K 分段、多次任务累加出完整部分和 |
 | `pe_array`/`drain_controller` 真参数化 | `generate` 例化，排空拍数由 `NPU_P+NPU_Q-2` 推出 | 删掉 16 段手写例化，P/Q 宏不再是装饰 |
 | `input_unpacker` 合并进 `npu_mac` | 只被 MAC 平面使用的纯组合拆包 | 少一个模块和 8 个端口 |
-| 未映射地址读回 0 | `mmio_if` 按 `sel_status` 判定，保留地址返回 0 | 修复"任意地址都返回状态寄存器" |
+| 未映射 / 非字对齐访问 | `ahb_lite_slave` 回 `HRESP=ERROR` | v2.1 是"读回 0、写忽略"，软件无法发现地址写错 |
+| 忙时访问 Buffer | `ahb_lite_slave` 回 `HRESP=ERROR` | 旧版请求被丢弃却应答成功，软件以为写进去了 |
+| AHB 背靠背访问 | 完成拍就地接受下一笔地址 | 漏掉这条会让连续访问只执行第 1、3、5… 笔 |
 
 RTL 规模：20 个 `.v` + 1 个 `.vh`，约 2080 行（v2.0 为 28 个模块、2089 行，但删掉了两个
 完整数据通路模块并简化了状态机）。

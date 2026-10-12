@@ -52,7 +52,7 @@ tb_npu.dut
 常用子层次：
 
 ```text
-tb_npu.dut.u_npu_top.u_mmio_if
+tb_npu.dut.u_ahb_lite_slave
 tb_npu.dut.u_npu_top.u_control_regs
 tb_npu.dut.u_npu_top.u_start_ctrl
 tb_npu.dut.u_tile_controller.u_systolic_fsm
@@ -82,17 +82,22 @@ u_tile_controller.u_c_tile_acc_ctrl                   (部分和回到 PE 内部
 
 ## 3. 推荐的 GTKWave 信号分组
 
-### 3.1 复位和 MMIO
+### 3.1 复位与 AHB-Lite 总线
 
 ```text
-tb_npu.dut.clk
-tb_npu.dut.rst
-tb_npu.dut.cpu_valid
-tb_npu.dut.cpu_we
-tb_npu.dut.cpu_addr
-tb_npu.dut.cpu_wdata
-tb_npu.dut.cpu_ready
-tb_npu.dut.cpu_rdata
+tb_npu.HCLK
+tb_npu.HRESETn
+tb_npu.HSEL
+tb_npu.HTRANS
+tb_npu.HWRITE
+tb_npu.HADDR
+tb_npu.HWDATA
+tb_npu.HREADYOUT
+tb_npu.HRESP
+tb_npu.HRDATA
+tb_npu.dut.rst              # 内部高有效复位，等于 !HRESETn
+tb_npu.dut.req_valid        # 每次 CPU 访问产生一个单拍脉冲
+tb_npu.dut.u_ahb_lite_slave.state
 ```
 
 ### 3.2 任务控制与配置校验
@@ -219,20 +224,24 @@ S_DRAIN -> S_CLEAR_ACC（此时 next_out_req=1、tile_j/tile_i 前进、tile_k �
        -> 上一块的写回（cwr_valid/c_wr_pulse）与这一块的计算并行发生
 ```
 
-## 5. MMIO 波形检查
+## 5. AHB-Lite 波形检查
 
 一次寄存器访问应该看到：
 
 ```text
-cpu_valid=1 -> (req_valid 单拍) -> cpu_ready=1 一个周期 -> 撤销 cpu_valid
+地址阶段(HSEL=1, HTRANS=NONSEQ) -> 下一拍 S_DATA 并发 req_valid 单拍
+-> HREADYOUT=1 表示完成，HRDATA 在该拍有效
 ```
 
 排查要点：
 
-- `cpu_ready` 只表示"本笔访问完成"，不是持续接收能力；CPU 端必须在采样到 ready 的同一拍
-  撤销 `cpu_valid`，否则请求会被重复接收。
-- 读 Buffer 比读寄存器多等一拍（`mmio_if` 的 `S_WAIT2` 等同步 RAM 读数据）。
-- 未映射地址读回 0；`sel_status` 为 0 时不会返回状态寄存器内容。
+- `HREADYOUT=0` 表示等待。只有两种正常来源：**Buffer 读**（等同步 RAM 数据，多 1 拍）
+  和**错误响应的第 1 拍**。空闲（`S_IDLE`）必须是 1。
+- 错误响应必须两拍：`HRESP=ERROR` 且 `HREADYOUT=0` 一拍，然后 `HRESP=ERROR` 且
+  `HREADYOUT=1` 一拍。只拉一拍 master 采不到。
+- 完成拍同时是下一笔的地址阶段，所以背靠背访问时 `S_DATA` 会连续出现、`req_valid`
+  连续为高（每拍一笔）；`state` 停在 `S_DATA` 说明出现了等待态。
+- 未映射地址、非 32 位访问（`HSIZE!=010`）都回 `HRESP=ERROR`，不再"读回 0、写忽略"。
 
 ## 6. 配置校验与 ERROR
 
@@ -303,8 +312,9 @@ drain_controller.drain_done_out  在 drain_en 保持期间为电平（会多保�
 ## 12. 分模块定位故障
 
 ```text
-没有 cpu_ready                 -> mmio_if
-cpu_ready 有但寄存器不变        -> npu_top 内联译码 / control_regs.byte0_wr
+HREADYOUT 一直是 0             -> ahb_lite_slave 停在 S_ERR1 或状态没回到 S_IDLE
+HREADYOUT 完成但寄存器不变      -> npu_top 内联译码 / control_regs.byte0_wr
+访问始终回 ERROR               -> 地址未映射 / HSIZE 非 010 / core_busy=1 时访问 Buffer
 start_pulse 不出现              -> start_ctrl 的 cfg_ok 与 state
 start_pulse 有但状态机不动      -> systolic_fsm 的 start_pulse 连接
 一直停在 S_PREFETCH             -> 预取突发或 FIFO count；看 stream_ctrl.busy_out
@@ -322,7 +332,8 @@ K 方向结果少了/多了             -> K Tile 之间是否被清累加器或
 ## 13. 推荐的 GTKWave 波形组
 
 ```text
-00_reset_mmio   : clk rst cpu_valid cpu_we cpu_addr cpu_wdata cpu_ready cpu_rdata
+00_reset_ahb    : HCLK HRESETn HSEL HTRANS HWRITE HADDR HWDATA HREADYOUT HRESP HRDATA
+                  dut.req_valid dut.u_ahb_lite_slave.state
 01_task_control : start_pulse core_busy core_done start_ctrl.state cfg_ok error_status
                   systolic_fsm.state tile_i tile_j tile_k valid_tm valid_tn valid_tk
 02_prefetch     : pf_start pf_next_start stream_ctrl.busy_out npu_a_re a_ram_raddr
@@ -342,8 +353,8 @@ K 方向结果少了/多了             -> K Tile 之间是否被清累加器或
    单个时钟沿看不出来。
 3. **并行看写回**：v2.1 的写回与下一个 Tile 的计算是并行的，`cwr_valid` 与
    `S_PREFETCH/S_FEED` 重叠是正常现象，不是 bug。
-4. **先确认 BUSY**：`core_busy` 为 1 时 CPU 对 Buffer 的写会被丢弃但 `cpu_ready` 仍拉高，
-   波形上表现为"写了却没生效"。先看 `core_busy` 再看数据。
+4. **先确认 BUSY**：`core_busy` 为 1 时访问 Buffer 会回 `HRESP=ERROR`（v2.1 是静默丢弃），
+   波形上先看 `core_busy` 与 `HRESP` 再看数据。
 
 ## 15. 最小观察信号集合
 
