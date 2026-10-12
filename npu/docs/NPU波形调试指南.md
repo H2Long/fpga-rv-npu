@@ -198,17 +198,17 @@ tb_npu.dut.u_tile_controller.core_done
 以 G1（4×4×4）为例，`u_systolic_fsm.state` 依次是：
 
 ```text
-S_IDLE(0) -> S_INIT(1) -> S_CLEAR_ACC(2) -> S_PREFETCH(3) -> S_FEED(4)
+S_IDLE(0) -> S_INIT(1) -> S_PREFETCH(2) -> S_FEED(3) -> S_DRAIN(4) -> S_DONE(5)
           -> S_DRAIN(5) -> S_DONE(6) -> S_IDLE(0)
 ```
 
 关键相位：
 
 ```text
-S_CLEAR_ACC : acc_clear=1（冲掉上一次的累加值和残留波前），等 snap_ready 后发 pf_start
+（v2.5 起没有 S_CLEAR_ACC：清累加器在 S_INIT 与 S_DRAIN 的 drain_done 那一拍做）
 S_PREFETCH  : array_enable=0，阵列整体冻结；两侧 FIFO 各出现 1 个字（pair_ready）就进 FEED
 S_FEED      : array_enable=1，pair_fire 每拍弹出一对 A/BT；
-              v2.4 起预取是"整块输出 Tile 的连续突发"，在 S_CLEAR_ACC 当拍一次发出
+              第一个 tile 的整段预取在 S_PREFETCH 第一拍发出（要等计数器归零）
 S_DRAIN     : array_enable=1、drain_en=1，保持 P+Q-2=6 拍；drain_done 后进入 S_DONE
 S_DONE      : 等 core_done（wr_cnt 达到 M*N 且写回通路空闲）
 ```
@@ -225,7 +225,7 @@ S_FEED 连续走完 nt_k 个 K Tile（v2.4 起 K Tile 之间不再回 S_PREFETCH
 **多输出 Tile 的任务（G2）波形要点**：
 
 ```text
-S_DRAIN -> S_CLEAR_ACC（此时 next_out_req=1、tile_j/tile_i 前进、tile_k 归零）
+S_DRAIN -> S_PREFETCH（drain_done 那一拍：采数、acc_clear、next_out_req 推进 tile）
        -> 立刻进入下一个输出 Tile 的 S_PREFETCH/S_FEED
        -> 上一块的写回（cwr_valid/c_wr_pulse）与这一块的计算并行发生
 ```
@@ -328,7 +328,8 @@ start_pulse 有但状态机不动      -> systolic_fsm 的 start_pulse 连接
 一直停在 S_FEED                 -> pair_fire 不成立：某个 FIFO 空
 一直停在 S_DRAIN                -> drain_en/drain_done 或 drain_controller 计数
 一直停在 S_DONE                 -> core_done 不成立：wr_cnt 没到 M*N 或 cwr_idle=0
-卡在 S_CLEAR_ACC                -> snap_ready=0：两组快照 bank 都被占用（写回跟不上计算）
+S_PREFETCH 长时间不通过          -> pair_ready=0（预取没发出/地址不对）或 snap_ready=0
+                                （两组快照 bank 都被占用，写回跟不上计算）
 C 结果全为 0                    -> acc_clear 是否被永久拉高（累加器每拍清零）
 C 结果写到了别的 tile 地址      -> 快照是否锁存了 c_base/valid_tm/valid_tn
 K 方向结果少了/多了             -> K Tile 之间是否被清累加器或清 feed_cnt 位置不对

@@ -34,71 +34,60 @@ TB = os.path.join(PROJECT, "tb")
 MONITOR = r"""
 `timescale 1ns/1ps
 `include "npu_defines.vh"
+// 只读监视器：用语义信号统计，不依赖状态编码（状态机改编号也不会失效）
 module mon_top;
     tb_npu u_tb();
 
-    wire clk = u_tb.HCLK;
-    wire [2:0] st   = u_tb.dut.u_tile_controller.u_systolic_fsm.state;
-    wire       pfrd = u_tb.dut.u_tile_controller.u_systolic_fsm.pair_ready;
-    wire       snpr = u_tb.dut.u_tile_controller.u_systolic_fsm.snap_ready;
-    wire       pair = u_tb.dut.u_tile_controller.pair_fire;
-    wire       cap  = u_tb.dut.u_tile_controller.u_c_tile_write_ctrl.cap_fire;
-    wire       scan = u_tb.dut.u_tile_controller.u_c_tile_write_ctrl.scan_start;
-    wire       push = u_tb.dut.u_tile_controller.cwr_valid;
-    wire [1:0] busy = u_tb.dut.u_tile_controller.u_c_tile_write_ctrl.bank_busy_q;
-    // 任务参数直接从 RTL 取，避免依赖解析测试台的 PASS 文本（累加用例的 PASS 行
-    // 里没有 M=.. N=.. K=..，按文本归属会把两个分段算到上一条用例头上）
-    wire [`NPU_DIM_W-1:0] cfg_m = u_tb.dut.u_tile_controller.cfg_m;
-    wire [`NPU_DIM_W-1:0] cfg_n = u_tb.dut.u_tile_controller.cfg_n;
-    wire [`NPU_DIM_W-1:0] cfg_k = u_tb.dut.u_tile_controller.cfg_k;
-    wire [`NPU_TK_W-1:0]  cfg_tk = u_tb.dut.u_tile_controller.cfg_tk;
+    wire clk   = u_tb.HCLK;
+    wire busy  = u_tb.dut.u_tile_controller.u_systolic_fsm.core_busy;
+    wire feed  = u_tb.dut.u_tile_controller.u_systolic_fsm.feed_go;
+    wire drain = u_tb.dut.u_tile_controller.u_systolic_fsm.drain_en;
+    wire pair  = u_tb.dut.u_tile_controller.pair_fire;
+    wire cap   = u_tb.dut.u_tile_controller.u_c_tile_write_ctrl.cap_fire;
+    wire scan  = u_tb.dut.u_tile_controller.u_c_tile_write_ctrl.scan_start;
+    wire push  = u_tb.dut.u_tile_controller.cwr_valid;
+    wire [1:0] bb = u_tb.dut.u_tile_controller.u_c_tile_write_ctrl.bank_busy_q;
+    wire busyn = bb[0] + bb[1];
 
-    reg [2:0] pst;
-    integer ntask, task_cyc, n_init, n_clear, w_clear, n_pref, w_pref;
-    integer n_feed, w_feed, n_drain, n_done, n_cap, n_scan, n_push, maxbusy;
+    reg b1, b2;
+    integer ntask, core, nfeed, nfeedok, ndrain, nwait, ncap, nscan, npush, maxbusy;
 
     task reset_cnt;
         begin
-            task_cyc = 0; n_init = 0; n_clear = 0; w_clear = 0;
-            n_pref = 0; w_pref = 0; n_feed = 0; w_feed = 0;
-            n_drain = 0; n_done = 0; n_cap = 0; n_scan = 0; n_push = 0;
+            core = 0; nfeed = 0; nfeedok = 0; ndrain = 0; nwait = 0;
+            ncap = 0; nscan = 0; npush = 0;
         end
     endtask
 
     initial begin
-        reset_cnt; ntask = 0; pst = 3'd0; maxbusy = 0;
+        reset_cnt; ntask = 0; b1 = 1'b0; b2 = 1'b0; maxbusy = 0;
     end
 
     always @(posedge clk) begin
         if (u_tb.HRESETn == 1'b0) begin
-            pst <= st;
+            b1 <= 1'b0; b2 <= 1'b0;
         end
         else begin
-            // 任务结束：FSM 从 S_DONE 回到 S_IDLE（core_done）。此时 cfg_* 仍然是
-            // 本任务的参数（npu_top 在下次 start 之前一直保持锁存值）。
-            if (st == 3'd0 && pst == 3'd6) begin
+            b2 <= b1;
+            b1 <= busy;
+            // 任务结束：上一拍还在忙、这一拍已经空闲
+            if (b1 && !busy) begin
                 ntask = ntask + 1;
-                $display("LEDGER n=%0d m=%0d n=%0d k=%0d tk=%0d core=%0d init=%0d clear=%0d clearwait=%0d pref=%0d prefwait=%0d feed=%0d feedstall=%0d drain=%0d done=%0d cap=%0d scan=%0d push=%0d maxbusy=%0d",
-                         ntask, cfg_m, cfg_n, cfg_k, cfg_tk,
-                         task_cyc, n_init, n_clear, w_clear, n_pref, w_pref,
-                         n_feed, w_feed, n_drain, n_done, n_cap, n_scan, n_push, maxbusy);
+                $display("LEDGER n=%0d core=%0d feed=%0d feedok=%0d drain=%0d wait=%0d cap=%0d scan=%0d push=%0d maxbusy=%0d",
+                         ntask, core, nfeed, nfeedok, ndrain, nwait, ncap, nscan, npush, maxbusy);
                 reset_cnt;
             end
-            if (st != 3'd0) task_cyc = task_cyc + 1;   // 只数 FSM 非空闲拍
-            case (st)
-                3'd1: n_init  = n_init  + 1;
-                3'd2: begin n_clear = n_clear + 1; if (!snpr) w_clear = w_clear + 1; end
-                3'd3: begin n_pref  = n_pref  + 1; if (!pfrd) w_pref  = w_pref  + 1; end
-                3'd4: begin n_feed  = n_feed  + 1; if (!pair) w_feed  = w_feed  + 1; end
-                3'd5: n_drain = n_drain + 1;
-                3'd6: n_done  = n_done  + 1;
-                default: ;
-            endcase
-            if (cap)  n_cap  = n_cap  + 1;
-            if (scan) n_scan = n_scan + 1;
-            if (push) n_push = n_push + 1;
-            if ((busy[0] + busy[1]) > maxbusy) maxbusy = busy[0] + busy[1];
-            pst <= st;
+            if (b1) begin
+                core = core + 1;
+                if (feed)    nfeed    = nfeed    + 1;
+                if (pair)    nfeedok  = nfeedok  + 1;
+                if (drain)   ndrain   = ndrain   + 1;
+                if (!feed && !drain) nwait = nwait + 1;   // 预取等待/清累加器/结束时等待
+                if (busyn > maxbusy) maxbusy = busyn;
+            end
+            if (cap)  ncap  = ncap  + 1;
+            if (scan) nscan = nscan + 1;
+            if (push) npush = npush + 1;
         end
     end
 endmodule
@@ -188,28 +177,26 @@ def main():
         return txt + " " * max(0, width - dwidth(txt))
 
     pe = pe_num()
-    hdr = ["任务", "M x N x K (TK)", "核心拍", "有效喂数", "等快照", "等预取",
-           "喂数空转", "排空", "其它", "利用率"]
-    rows, tot, maxbusy = [], {k: 0 for k in ("core", "feed", "feedstall", "clearwait",
-                                             "prefwait", "drain", "done", "cap", "scan",
-                                             "push")}, 0
+    hdr = ["任务", "M x N x K (TK)", "核心拍", "有效喂数", "喂数空转", "排空",
+           "其它", "利用率"]
+    rows, tot, maxbusy = [], {k: 0 for k in ("core", "feed", "feedok", "drain", "wait",
+                                             "cap", "scan", "push")}, 0
     for t in tasks:
         if not t["ledgers"]:
-            rows.append([t["name"]] + ["-"] * 9)
+            rows.append([t["name"]] + ["-"] * 7)
             continue
         led = {k: sum(g.get(k, 0) for g in t["ledgers"]) for k in tot}
         led["maxbusy"] = max(g.get("maxbusy", 0) for g in t["ledgers"])
-        first = t["ledgers"][0]
-        m, n, k, tk = first["m"], first["n"], first["k"], first["tk"]
-        feed_ok = led["feed"] - led["feedstall"]
-        # 其它 = 各状态的正常通过拍（init / clear 通过 / prefetch 通过 / 结束等待）
-        other = (led["core"] - led["feed"] - led["drain"] - led["clearwait"]
-                 - led["prefwait"] - led["feedstall"])
+        # m/n/k/tk 来自 TASK_BEGIN（测试台在任务开始时打印），账本行只带计数
+        m, n, k, tk = t["m"], t["n"], t["k"], t["tk"]
+        feed_ok = led["feedok"]
+        stall   = led["feed"] - led["feedok"]          # 喂数期间 FIFO 没数
+        other   = led["core"] - led["feed"] - led["drain"] - led["wait"]
         util = m * n * k * 100.0 / (led["core"] * pe) if led["core"] else 0.0
         seg = f" x{len(t['ledgers'])}" if len(t["ledgers"]) > 1 else ""
         rows.append([t["name"] + seg, f"{m}x{n}x{k} TK{tk}", str(led["core"]),
-                     str(feed_ok), str(led["clearwait"]), str(led["prefwait"]),
-                     str(led["feedstall"]), str(led["drain"]), str(other), f"{util:.1f}%"])
+                     str(feed_ok), str(stall), str(led["drain"]), str(other),
+                     f"{util:.1f}%"])
         for kk in tot:
             tot[kk] += led[kk]
         maxbusy = max(maxbusy, led["maxbusy"])
@@ -226,12 +213,10 @@ def main():
     if tot["core"]:
         ntask = len([r for r in rows if r[2] != "-"])
         print(f"合计（{ntask} 个任务的 FSM 拍数；不含任务之间的 CPU 装载时间）:")
-        for k, v in (("有效喂数", tot["feed"] - tot["feedstall"]),
-                     ("等快照 bank", tot["clearwait"]),
-                     ("等预取", tot["prefwait"]),
-                     ("喂数空转", tot["feedstall"]),
+        for k, v in (("有效喂数", tot["feedok"]),
+                     ("喂数空转", tot["feed"] - tot["feedok"]),
                      ("排空", tot["drain"]),
-                     ("结束等待(等 C 落 RAM)", tot["done"]),
+                     ("预取/结束等待", tot["wait"]),
                      ("快照捕获", tot["cap"]),
                      ("扫描启动", tot["scan"]),
                      ("写 FIFO 入队", tot["push"])):

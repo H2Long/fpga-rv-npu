@@ -134,11 +134,24 @@ module tile_controller(
 
     wire [`NPU_ABUF_AW-1:0] a_base  = a_tile_off[`NPU_ABUF_AW-1:0];
     wire [`NPU_BBUF_AW-1:0] bt_base = bt_tile_off[`NPU_BBUF_AW-1:0];
+
+    // ---- 下一个输出 Tile 的预测基址 ----
+    // 排空期间状态机就启动下一块的预取（排空 6 拍正好遮住突发首字延迟），但那时
+    // tile 计数器还没推进（next_out_req 要到同一拍才发出），所以这里组合预测：
+    // 换输出 Tile 只是 tile_j 前进（末列则回 0 且 tile_i 前进），而 A 只跟 tile_i 走、
+    // BT 只跟 tile_j 走，于是下一块的 A 基址在"不换行"时和本块相同。
+    wire next_row = (tile_j + 6'd1 >= nt_j);
+    wire [`NPU_TIDX_W-1:0] next_i = next_row ? (tile_i + 6'd1) : tile_i;
+    wire [`NPU_TIDX_W-1:0] next_j = next_row ? {`NPU_TIDX_W{1'b0}} : (tile_j + 6'd1);
+    wire [`NPU_DIM_W+`NPU_DIM_W-1:0] a_tile_off_next  = next_i * lb_k;
+    wire [`NPU_DIM_W+`NPU_DIM_W-1:0] bt_tile_off_next = next_j * lb_k;
+    wire [`NPU_ABUF_AW-1:0] a_base_next  = a_tile_off_next[`NPU_ABUF_AW-1:0];
+    wire [`NPU_BBUF_AW-1:0] bt_base_next = bt_tile_off_next[`NPU_BBUF_AW-1:0];
     wire [`NPU_CBASE_W-1:0] c_base = (tile_i * lp_tm) * lb_n + tile_j * lp_tn;
 
     // ---- 主状态机 ----
     wire fsm_acc_clear, fsm_drain_en, fsm_array_enable, fsm_core_busy;
-    wire pf_start, feed_go, fsm_done, cwr_idle;
+    wire pf_start, pf_next, feed_go, fsm_done, cwr_idle;
     wire snap_ready;      // 有空闲快照 bank（c_tile_write_ctrl 输出）
 
     systolic_fsm u_systolic_fsm(
@@ -154,7 +167,7 @@ module tile_controller(
         .snap_ready(snap_ready),
         .sched_init(sched_init), .next_k_req(next_k_req), .next_out_req(next_out_req),
         .acc_clear(fsm_acc_clear),
-        .pf_start(pf_start),
+        .pf_start(pf_start), .pf_next(pf_next),
         .feed_go(feed_go), .drain_en(fsm_drain_en), .array_enable(fsm_array_enable),
         .fsm_done(fsm_done), .core_busy(fsm_core_busy)
     );
@@ -227,10 +240,11 @@ module tile_controller(
         pair_fire     = feed_go && (a_fifo_count != 0) && (bt_fifo_count != 0);
         fifo_pair_pop = pair_fire;
 
-        // 预取突发：换输出 Tile 时启动一次，长度是整个输出 Tile 的 K 个字。
-        stream_start = pf_start;
-        a_pf_base    = a_base;
-        bt_pf_base   = bt_base;
+        // 预取突发：第一个 tile 由 pf_start 启动（前面没有排空可遮），之后每个 tile
+        // 由 pf_next 在**上一块的排空期间**启动，基址用上面预测的下一块值。
+        stream_start = pf_start || pf_next;
+        a_pf_base    = pf_next ? a_base_next  : a_base;
+        bt_pf_base   = pf_next ? bt_base_next : bt_base;
         pf_len       = lb_k;
 
         wr_cnt_next = wr_cnt + {{(11){1'b0}}, c_wr_pulse};
